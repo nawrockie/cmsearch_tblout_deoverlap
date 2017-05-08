@@ -40,8 +40,17 @@ my @tblout_file_A = ();
 
 if($do_list) { 
   # read the list file
-  # make sure all the files exist
-  exit 0;
+  my $list_file = $in_tblout;
+  open(IN, $list_file) || die "ERROR unable to open $list_file for reading"; 
+  while(my $line = <IN>) { 
+    if($line =~ m/\w/ && $line !~ m/^\#/) { 
+      chomp $line;
+      if(! -e $line) { die "ERROR file $line read from $list_file does not exist"; }
+      if(! -s $line) { die "ERROR file $line read from $list_file is empty"; }
+      push(@tblout_file_A, $line);
+    }
+  }
+  close(IN);
 }
 else { 
   $tblout_file_A[0] = $in_tblout;
@@ -59,8 +68,8 @@ foreach my $tblout_file (@tblout_file_A) {
   # sort tblout file by target sequence name
   $sorted_tblout_file = $tblout_file . ".sort";
   $sort_cmd = ($rank_by_score) ? 
-      "grep -v ^\# $tblout_file | sort -k 1,1 -k 15,15rn > $sorted_tblout_file" : 
-      "grep -v ^\# $tblout_file | sort -k 1,1 -k 16,16g > $sorted_tblout_file";
+      "grep -v ^\# $tblout_file | sort -k 1,1 -k 15,15rn -k 16,16g > $sorted_tblout_file" : 
+      "grep -v ^\# $tblout_file | sort -k 1,1 -k 16,16g -k 15,15rn > $sorted_tblout_file";
   run_command($sort_cmd, $do_debug);
   $output_file = $tblout_file . ".deoverlapped";
   $out_FH = undef;
