@@ -56,6 +56,12 @@ else {
   $tblout_file_A[0] = $in_tblout;
 }
 
+my %clan_H = undef; # key: model name, value: clan name
+if(defined $in_clanin) { 
+  %clan_H = ();
+  parse_claninfo($in_clanin, \%clan_H)
+}
+
 my $sort_cmd           = undef; # command used to sort the tblout file
 my $sorted_tblout_file = undef; # sorted tblout file to create, temporarily
 my $output_file        = undef; # name of output file we create 
@@ -74,7 +80,7 @@ foreach my $tblout_file (@tblout_file_A) {
   $output_file = $tblout_file . ".deoverlapped";
   $out_FH = undef;
   open($out_FH, ">", $output_file) || die "ERROR unable to open $output_file for writing"; 
-  ($nkept, $nremoved) = parse_sorted_tblout_file($sorted_tblout_file, undef, $rank_by_score, $do_debug, $out_FH);
+  ($nkept, $nremoved) = parse_sorted_tblout_file($sorted_tblout_file, (defined $in_clanin) ? \%clan_H : undef, $rank_by_score, $do_debug, $out_FH);
   close $out_FH;
   if(! $do_keep) { 
     unlink $sorted_tblout_file;
@@ -393,6 +399,49 @@ sub run_command {
 
   if($? != 0) { 
     die "ERROR in $sub_name, the following command failed:\n$cmd\n";
+  }
+
+  return;
+}
+
+#################################################################
+# Subroutine:  parse_claninfo()
+# Incept:      EPN, Wed May 10 15:01:07 2017
+#
+# Purpose:     Parse a claninfo file and fill %{$clan_HR}.
+#
+# Arguments:
+#   $claninfo_file: clan info file
+#   $clan_HR:       ref to hash of clan info, key: model name, value: clan name
+#
+# Returns:    nothing
+#
+# Dies:       if $cmd fails
+#################################################################
+sub parse_claninfo { 
+  my $sub_name = "parse_claninfo()";
+  my $nargs_expected = 2;
+  if(scalar(@_) != $nargs_expected) { printf STDERR ("ERROR, $sub_name entered with %d != %d input arguments.\n", scalar(@_), $nargs_expected); exit(1); } 
+
+  my ($claninfo_file, $clan_HR) = @_;
+  
+  open(IN, $claninfo_file) || die "ERROR unable to open clan info file";
+
+  %{$clan_HR} = ();
+
+  while(my $line = <IN>) { 
+    if($line !~ m/^#/) { 
+      chomp $line;
+      my @el_A = split(/\s+/, $line);
+      # first element is clan name, all other elements are model names in that clan
+      #CL00111	SSU_rRNA_bacteria SSU_rRNA_archaea SSU_rRNA_eukarya SSU_rRNA_microsporidia SSU_trypano_mito
+      for(my $i = 1; $i < scalar(@el_A); $i++) { 
+        if(exists $clan_H{$el_A[$i]}) { 
+          die "ERROR in $sub_name, parsing clan info file $claninfo_file, read model $el_A[$i] more than once";
+        }
+        $clan_HR->{$el_A[$i]} = $el_A[0];
+      }
+    }
   }
 
   return;
