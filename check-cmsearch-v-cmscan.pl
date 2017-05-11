@@ -1,29 +1,28 @@
+use Getopt::Long;
+
+my $usage;
+$usage = "perl check-cmsearch-v-cmscan.pl [OPTIONS] <cmsearch non-deoverlapped tblout output> <cmscan --fmt 2 --oskip tblout output>\n\n";
+$usage .= "\tOPTIONS:\n";
+$usage .= "\t\t--maxkeep    : only remove hits that have a higher scoring overlap that is not removed\n";
+$usage .= "\t\t--clanin <s> : only remove overlaps within clans, read clan info from file <s> (cmscan run with --oclan --clanin)\n\n";
+
+my $in_clanin  = undef; # defined if --clanin option used
+my $do_maxkeep = 0;
+&GetOptions( "maxkeep"  => \$do_maxkeep,
+             "clanin=s" => \$in_clanin );
 
 if(scalar(@ARGV) != 2) { 
   die $usage;
 }
 
-use Getopt::Long;
-
-my $in_tblout  = "";   # name of input tblout file
-
-my $usage;
-$usage = "perl check-cmsearch-v-cmscan.pl [OPTIONS] <cmsearch non-deoverlapped tblout output> <cmscan --fmt 2 --oskip tblout output>";
-$usage .= "\tOPTIONS:\n";
-$usage .= "\t\t--clanin <s> : only remove overlaps within clans, read clan info from file <s> [default: remove all overlaps]\n\n";
-
-my $in_clanin     = undef; # defined if --clanin option used
-&GetOptions( "clanin=s" => \$in_clanin );
-
 my($cmsearch_file, $cmscan_file) = (@ARGV);
 
 # deoverlap $cmsearch_file
-if(defined $in_clanin) { 
-  system("perl ./cmsearch-deoverlap.pl --clanin $in_clanin $cmsearch_file");
-}
-else { 
-  system("perl ./cmsearch-deoverlap.pl $cmsearch_file");
-}
+my $opts = ""; 
+if(defined $in_clan) { $opts .= " --clanin $in_clanin "; }
+if($do_maxkeep)      { $opts .= " --maxkeep "; }
+
+system("perl ./cmsearch-deoverlap.pl $opts $cmsearch_file");
 my $deoverlap_file = $cmsearch_file . ".deoverlapped";
 
 # strip cmsearch
