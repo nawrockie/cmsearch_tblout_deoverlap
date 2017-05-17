@@ -29,6 +29,7 @@
 # hits 1 and 4 no longer overlap.
 #
 use strict;
+use warnings;
 use Getopt::Long;
 
 my $in_tblout  = "";   # name of input tblout file
@@ -82,7 +83,7 @@ else {
   $tblout_file_A[0] = $in_tblout;
 }
 
-my %clan_H = undef; # key: model name, value: clan name
+my %clan_H = (); # key: model name, value: clan name
 if(defined $in_clanin) { 
   %clan_H = ();
   parse_claninfo($in_clanin, \%clan_H)
@@ -101,7 +102,7 @@ foreach my $tblout_file (@tblout_file_A) {
 
   # sort tblout file by target sequence name
   $sorted_tblout_file = $tblout_file . ".sort";
-  $sort_cmd = ($rank_by_score) ? 
+  $sort_cmd = ((defined $rank_by_score) && ($rank_by_score == 1)) ? 
       "grep -v ^\# $tblout_file | sort -k 1,1 -k 15,15rn -k 16,16g > $sorted_tblout_file" : 
       "grep -v ^\# $tblout_file | sort -k 1,1 -k 16,16g -k 15,15rn > $sorted_tblout_file";
   run_command($sort_cmd, $do_debug);
@@ -111,7 +112,7 @@ foreach my $tblout_file (@tblout_file_A) {
   ($nkept, $nremoved) = parse_sorted_tblout_file($sorted_tblout_file, (defined $in_clanin) ? \%clan_H : undef, $rank_by_score, $do_maxkeep, $do_debug, $out_FH);
   close $out_FH;
   if(! $do_dirty) { 
-    unlink $sorted_tblout_file;
+    #unlink $sorted_tblout_file;
   }
   printf("Saved %5d hits (%5d removed) to $output_file\n", $nkept, $nremoved)
 }
@@ -172,6 +173,7 @@ sub parse_sorted_tblout_file {
 
   my %already_seen_H = (); # hash, key is sequence name, value is '1' if we have output info for this sequence
 
+  $prv_evalue = 0.;
   while(my $line = <IN>) { 
     ######################################################
     # Parse the data on this line, this differs depending
@@ -223,10 +225,10 @@ sub parse_sorted_tblout_file {
     else { # this is not a new sequence
       # make sure that our current score or E-value is less than previous
       if($rank_by_score && ($score > $prv_score)) { 
-        die "ERROR found lines with same target incorrectly sorted by score, did you sort by sequence name and score?";
+        die "ERROR found lines with same target [$target] incorrectly sorted by score, did you sort by sequence name and score?";
       }
       elsif((! $rank_by_score) && ($evalue < $prv_evalue)) { 
-        die "ERROR found lines with same target incorrectly sorted by E-value, did you sort by sequence name and E-value?";
+        die "ERROR found lines with same target [$target] incorrectly sorted by E-value, did you sort by sequence name and E-value?";
       }
     }
     ##############################################################
