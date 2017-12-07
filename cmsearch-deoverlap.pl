@@ -35,7 +35,9 @@ use Getopt::Long;
 my $in_tblout  = "";   # name of input tblout file
 
 my $usage;
-$usage  = "cmsearch-deoverlap.pl    [OPTIONS] <tblout file>\n\tOR\n";
+$usage  = "cmsearch-deoverlap v0.01\n\n";
+$usage .= "Usage:\n\n";
+$usage .= "cmsearch-deoverlap.pl    [OPTIONS] <tblout file>\n\tOR\n";
 $usage .= "cmsearch-deoverlap.pl -l [OPTIONS] <list of tblout files>\n\n";
 $usage .= "\tOPTIONS:\n";
 $usage .= "\t\t-l           : single command line argument is a list of tblout files, not a single tblout file\n";

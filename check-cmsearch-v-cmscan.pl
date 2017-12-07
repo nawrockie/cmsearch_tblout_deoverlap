@@ -1,7 +1,9 @@
 use Getopt::Long;
 
 my $usage;
-$usage = "perl check-cmsearch-v-cmscan.pl [OPTIONS] <cmsearch non-deoverlapped tblout output> <cmscan --fmt 2 --oskip tblout output>\n\n";
+$usage  = "cmsearch-deoverlap v0.01\n\n";
+$usage .= "Usage:\n\n";
+$usage .= "perl check-cmsearch-v-cmscan.pl [OPTIONS] <cmsearch non-deoverlapped tblout output> <cmscan --fmt 2 --oskip tblout output>\n\n";
 $usage .= "\tOPTIONS:\n";
 $usage .= "\t\t--maxkeep    : only remove hits that have a higher scoring overlap that is not removed\n";
 $usage .= "\t\t--clanin <s> : only remove overlaps within clans, read clan info from file <s> (cmscan run with --oclan --clanin)\n\n";
