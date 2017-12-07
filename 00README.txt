@@ -1,5 +1,7 @@
 EPN, Wed May 10 20:40:36 2017
 
+Version 0.01
+
 cmsearch-deoverlap.pl: remove lower scoring overlaps from cmsearch
                        --tblout files.
 
