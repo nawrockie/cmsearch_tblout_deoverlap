@@ -35,7 +35,7 @@ use Getopt::Long;
 my $in_tblout  = "";   # name of input tblout file
 
 my $usage;
-$usage  = "cmsearch-deoverlap v0.01\n\n";
+$usage  = "cmsearch-deoverlap v0.02 [Dec 2017]\n\n";
 $usage .= "Usage:\n\n";
 $usage .= "cmsearch-deoverlap.pl    [OPTIONS] <tblout file>\n\tOR\n";
 $usage .= "cmsearch-deoverlap.pl -l [OPTIONS] <list of tblout files>\n\n";
@@ -43,6 +43,9 @@ $usage .= "\tOPTIONS:\n";
 $usage .= "\t\t-l           : single command line argument is a list of tblout files, not a single tblout file\n";
 $usage .= "\t\t-s           : sort hits by bit score [default: sort by E-value]\n";
 $usage .= "\t\t-d           : run in debugging mode (prints extra info)\n";
+$usage .= "\t\t--nhmmer     : tblout files are from nhmmer v3.x\n";
+$usage .= "\t\t--hmmsearch  : tblout files are from hmmsearch v3.x\n";
+$usage .= "\t\t--besthmm    : with --hmmsearch, sort by evalue/score of *best* single hit not evalue/score of full seq\n";
 $usage .= "\t\t--clanin <s> : only remove overlaps within clans, read clan info from file <s> [default: remove all overlaps]\n";
 $usage .= "\t\t--maxkeep    : keep hits that only overlap with other hits that are not kept [default: remove all hits with higher scoring overlap]\n";
 $usage .= "\t\t--dirty      : keep intermediate files (sorted tblout files)\n\n";
@@ -51,19 +54,32 @@ my $do_listfile      = 0;     # set to '1' if -l used
 my $rank_by_score    = 0;     # set to '1' if -s used, rank by score, not evalues
 my $do_debug         = 0;     # set to '1' if -d used
 my $in_clanin        = undef; # defined if --clanin option used
+my $do_nhmmer        = 0;     # set to '1' if --nhmmer used, input tblout file(s) are from hmmer3's nhmmer
+my $do_hmmsearch     = 0;     # set to '1' if --hmmsearch used, input tblout file(s) are from hmmer3's hmmsearch
+my $do_besthmm       = 0;     # set to '1' if --besthmm used, sorting by evalue/score of best hit with --hmmsearch
 my $do_maxkeep       = 0;     # set to '1' if --maxkeep, only remove hits that have 
                               # higher scoring overlap that is not removed
 my $do_dirty         = 0;     # set to '1' if --dirty used, keep intermediate files
 
-&GetOptions( "-l"       => \$do_listfile, 
-             "-s"       => \$rank_by_score,
-             "-d"       => \$do_debug,
-             "clanin=s" => \$in_clanin,
-             "maxkeep"  => \$do_maxkeep, 
-             "keep"     => \$do_dirty);
+&GetOptions( "l"         => \$do_listfile, 
+             "s"         => \$rank_by_score,
+             "d"         => \$do_debug,
+             "nhmmer"    => \$do_nhmmer,
+             "hmmsearch" => \$do_hmmsearch,
+             "besthmm"   => \$do_besthmm,
+             "clanin=s"  => \$in_clanin,
+             "maxkeep"   => \$do_maxkeep, 
+             "keep"      => \$do_dirty);
 
 if(scalar(@ARGV) != 1) { die $usage; }
 ($in_tblout) = @ARGV;
+
+if($do_hmmsearch && $do_nhmmer) { 
+  die "ERROR, --hmmsearch and --nhmmer cannot be used in combination. Pick one.";
+}
+if($do_besthmm && (! $do_hmmsearch)) { 
+  die "ERROR, --besthmm requires --hmmsearch."; 
+}  
 
 my @tblout_file_A = ();
 
@@ -102,16 +118,47 @@ foreach my $tblout_file (@tblout_file_A) {
   if(! -e $tblout_file) { die "ERROR tblout file $tblout_file does not exist"; }
   if(! -s $tblout_file) { die "ERROR tblout file $tblout_file is empty"; }
 
-  # sort tblout file by target sequence name
+  # if($rank_by_score): 
+  #   sort tblout file by target sequence name, then score, then E-value 
+  # else:
+  #   sort tblout file by target sequence name, then E-value, then score
+  #
+  # keys to sort by depend on input tblout file type, which
+  # is controlled by
+  # $do_hmmsearch
+  # $do_nhmmer
+  # or default if both of those are false
+  #
   $sorted_tblout_file = $tblout_file . ".sort";
+  if($do_hmmsearch) { 
+    if($do_besthmm) { 
+      $sort_cmd = ((defined $rank_by_score) && ($rank_by_score == 1)) ? 
+          "grep -v ^\# $tblout_file | sort -k 1,1 -k 9,9rn -k 8,8g > $sorted_tblout_file" : 
+          "grep -v ^\# $tblout_file | sort -k 1,1 -k 8,8g -k 9,9rn > $sorted_tblout_file";
+    }
+    else { # sort by full sequence evalue/score
+      $sort_cmd = ((defined $rank_by_score) && ($rank_by_score == 1)) ? 
+          "grep -v ^\# $tblout_file | sort -k 1,1 -k 6,6rn -k 5,5g > $sorted_tblout_file" : 
+          "grep -v ^\# $tblout_file | sort -k 1,1 -k 5,5g -k 6,6rn > $sorted_tblout_file";
+    }
+  }
+  elsif($do_nhmmer) { 
+    $sort_cmd = ((defined $rank_by_score) && ($rank_by_score == 1)) ? 
+        "grep -v ^\# $tblout_file | sort -k 1,1 -k 14,14rn -k 13,13g > $sorted_tblout_file" : 
+        "grep -v ^\# $tblout_file | sort -k 1,1 -k 13,13g -k 14,14rn > $sorted_tblout_file";
+  }
+  else { 
+    # cmsearch, default
   $sort_cmd = ((defined $rank_by_score) && ($rank_by_score == 1)) ? 
       "grep -v ^\# $tblout_file | sort -k 1,1 -k 15,15rn -k 16,16g > $sorted_tblout_file" : 
       "grep -v ^\# $tblout_file | sort -k 1,1 -k 16,16g -k 15,15rn > $sorted_tblout_file";
+  }
   run_command($sort_cmd, $do_debug);
   $output_file = $tblout_file . ".deoverlapped";
   $out_FH = undef;
   open($out_FH, ">", $output_file) || die "ERROR unable to open $output_file for writing"; 
-  ($nkept, $nremoved) = parse_sorted_tblout_file($sorted_tblout_file, (defined $in_clanin) ? \%clan_H : undef, $rank_by_score, $do_maxkeep, $do_debug, $out_FH);
+  ($nkept, $nremoved) = parse_sorted_tblout_file($sorted_tblout_file, (defined $in_clanin) ? \%clan_H : undef, 
+                                                 $do_nhmmer, $do_hmmsearch, $do_besthmm, $rank_by_score, $do_maxkeep, $do_debug, $out_FH);
   close $out_FH;
   if(! $do_dirty) { 
     #unlink $sorted_tblout_file;
@@ -129,6 +176,10 @@ foreach my $tblout_file (@tblout_file_A) {
 # Arguments: 
 #   $sorted_tbl_file:  file with sorted tabular search results
 #   $clan_HR:          ref to hash of clan info, key is model, value is clan
+#   $do_nhmmer:        '1' if we're parsing nhmmer tblout output
+#   $do_hmmsearch:     '1' if we're parsing hmmsearch tblout output
+#   $do_besthmm:       '1' if we sorted hmmsearch tblout by best hit 
+#                      not by full sequence
 #   $rank_by_score:    '1' if rank is determined by score, '0' if
 #                      determined by E-value
 #   $do_maxkeep:       '1' if --maxkeep option used
@@ -146,11 +197,11 @@ foreach my $tblout_file (@tblout_file_A) {
 #
 ################################################################# 
 sub parse_sorted_tblout_file { 
-  my $nargs_expected = 6;
+  my $nargs_expected = 9;
   my $sub_name = "parse_sorted_tblout_file";
   if(scalar(@_) != $nargs_expected) { printf STDERR ("ERROR, $sub_name entered with %d != %d input arguments.\n", scalar(@_), $nargs_expected); exit(1); } 
 
-  my ($sorted_tbl_file, $clan_HR, $rank_by_score, $do_maxkeep, $do_debug, $out_FH) = @_;
+  my ($sorted_tbl_file, $clan_HR, $do_nhmmer, $do_hmmsearch, $do_besthmm, $rank_by_score, $do_maxkeep, $do_debug, $out_FH) = @_;
 
   my $prv_target = undef; # target name of previous line
   my $prv_score  = undef; # bit score of previous line
@@ -186,15 +237,23 @@ sub parse_sorted_tblout_file {
     if($line =~ m/^\#/) { 
       die "ERROR, found line that begins with #, input should have these lines removed and be sorted by the first column:$line.";
     }
-    my @el_A = split(/\s+/, $line);
-
-    ##target name             accession query name           accession mdl mdl from   mdl to seq from   seq to strand trunc pass   gc  bias  score   E-value inc description of target
-    ##----------------------- --------- -------------------- --------- --- -------- -------- -------- -------- ------ ----- ---- ---- ----- ------ --------- --- ---------------------
-    #lcl|dna_BP444_24.8k:251  -         SSU_rRNA_archaea     RF01959   hmm        3     1443        2     1436      +     -    6 0.53   6.0 1078.9         0 !   -
-    if(scalar(@el_A) < 18) { die "ERROR found less than 18 columns in cmsearch tabular output at line: $line"; }
-#    ($target, $model, $mdlfrom, $mdlto, $seqfrom, $seqto, $strand, $score, $evalue) = 
-    ($target, $model, $seqfrom, $seqto, $strand, $score, $evalue) = 
-        ($el_A[0], $el_A[2], $el_A[7], $el_A[8], $el_A[9],  $el_A[14], $el_A[15]);
+    
+    if($do_hmmsearch) { 
+      ($target, $model, $score, $evalue) = parse_hmmsearch_tblout_line($line, $do_besthmm);
+      # hmmsearch --tblout output lacks sequence ranges and strand information
+      # we want to allow only a single hit to the each target, so we set span as 1..1
+      # so that all hits to the same target will 'overlap'. Strand is set as "+"
+      # so all hits are considered on the same 'strand' for de-overlapping purposes.
+      $seqfrom = 1;
+      $seqto   = 1;
+      $strand  = "+"; # no strand for hmmsearch output, so we assert + for de-overlapping purposes
+    }
+    elsif($do_nhmmer) { 
+      ($target, $model, $seqfrom, $seqto, $strand, $score, $evalue) = parse_nhmmer_tblout_line($line);
+    }
+    else { # default: cmsearch
+      ($target, $model, $seqfrom, $seqto, $strand, $score, $evalue) = parse_cmsearch_tblout_line($line);
+    }
 
     $clan = undef;
     if(defined $clan_HR) { 
@@ -225,12 +284,14 @@ sub parse_sorted_tblout_file {
       $nhits     = 0;
     }
     else { # this is not a new sequence
-      # make sure that our current score or E-value is less than previous
-      if($rank_by_score && ($score > $prv_score)) { 
-        die "ERROR found lines with same target [$target] incorrectly sorted by score, did you sort by sequence name and score?";
-      }
-      elsif((! $rank_by_score) && ($evalue < $prv_evalue)) { 
-        die "ERROR found lines with same target [$target] incorrectly sorted by E-value, did you sort by sequence name and E-value?";
+      if(defined $prv_target) { 
+        # make sure that our current score or E-value is less than previous
+        if($rank_by_score && ($score > $prv_score)) { 
+          die "ERROR found lines with same target [$target] incorrectly sorted by score, did you sort by sequence name and score?";
+        }
+        elsif((! $rank_by_score) && ($evalue < $prv_evalue)) { 
+          die "ERROR found lines with same target [$target] incorrectly sorted by E-value, did you sort by sequence name and E-value?";
+        }
       }
     }
     ##############################################################
@@ -490,4 +551,132 @@ sub parse_claninfo {
   }
 
   return;
+}
+
+#################################################################
+# Subroutine:  parse_cmsearch_tblout_line()
+# Incept:      EPN, Fri Dec  8 09:33:23 2017
+#
+# Purpose:     Given an infernal cmsearch --tblout line, 
+#              return $target, $query, $seqfrom, $seqto, $strand, $score, $evalue.
+#
+#     # Example line
+#     #target name         accession query name           accession mdl mdl from   mdl to seq from   seq to strand trunc pass   gc  bias  score   E-value inc description of target
+#     #------------------- --------- -------------------- --------- --- -------- -------- -------- -------- ------ ----- ---- ---- ----- ------ --------- --- ---------------------
+#     5S_rRNA-sample10     -         5S_rRNA              RF00001    cm        1      119        1      121      +    no    1 0.61   0.0  108.2   1.5e-27 !   -
+#
+# Arguments:
+#   $line:  line to parse
+#
+# Returns:    $target: name of target       (5S_rRNA-sample10)
+#             $query:  query name           (5S_rRNA)
+#             $seqfrom: sequence from coord (1)
+#             $seqto:   sequence to coord   (121)
+#             $strand:  strand of hit       (+)
+#             $score:   bit score of hit    (108.2)
+#             $evalue:  E-value of hit      (1.5e-27)
+#
+# Dies:       if line has fewer than 18 space delimited characters
+#################################################################
+sub parse_cmsearch_tblout_line { 
+  my $sub_name = "parse_cmsearch_tblout_line";
+  my $nargs_expected = 1;
+  if(scalar(@_) != $nargs_expected) { printf STDERR ("ERROR, $sub_name entered with %d != %d input arguments.\n", scalar(@_), $nargs_expected); exit(1); } 
+
+  my ($line) = @_;
+  
+  my @el_A = split(/\s+/, $line);
+
+  if(scalar(@el_A) < 18) { die "ERROR found less than 18 columns in cmsearch tabular output at line: $line"; }
+#    ($target, $query, $mdlfrom, $mdlto, $seqfrom, $seqto, $strand, $score, $evalue) = 
+  my ($target, $query, $seqfrom, $seqto, $strand, $score, $evalue) = 
+      ($el_A[0], $el_A[2], $el_A[7], $el_A[8], $el_A[9],  $el_A[14], $el_A[15]);
+
+  return($target, $query, $seqfrom, $seqto, $strand, $score, $evalue);
+}
+
+#################################################################
+# Subroutine:  parse_nhmmer_tblout_line()
+# Incept:      EPN, Fri Dec  8 09:42:28 2017
+#
+# Purpose:     Given an nhmmer --tblout line, 
+#              return $target, $query, $seqfrom, $seqto, $strand, $score, $evalue.
+#
+#     # Example line
+#     # target name        accession  query name           accession  hmmfrom hmm to alifrom  ali to envfrom  env to  sq len strand   E-value  score  bias  description of target
+#     #------------------- ---------- -------------------- ---------- ------- ------- ------- ------- ------- ------- ------- ------ --------- ------ ----- ---------------------
+#     5S_rRNA-sample10     -          5S_rRNA              RF00001          4     115       4     117       1     121     121    +     1.6e-17   53.3   4.8  -
+#
+# Arguments:
+#   $line:  line to parse
+#
+# Returns:    $target: name of target       (5S_rRNA-sample10)
+#             $query:  query name           (5S_rRNA)
+#             $seqfrom: ali from coord      (4)
+#             $seqto:   ali to coord        (117)
+#             $strand:  strand of hit       (+)
+#             $score:   bit score of hit    (53.3)
+#             $evalue:  E-value of hit      (1.6e-17)
+#
+# Dies:       if line has fewer than 16 space delimited characters
+#################################################################
+sub parse_nhmmer_tblout_line { 
+  my $sub_name = "parse_nhmmer_tblout_line";
+  my $nargs_expected = 1;
+  if(scalar(@_) != $nargs_expected) { printf STDERR ("ERROR, $sub_name entered with %d != %d input arguments.\n", scalar(@_), $nargs_expected); exit(1); } 
+
+  my ($line) = @_;
+  
+  my @el_A = split(/\s+/, $line);
+
+  if(scalar(@el_A) < 16) { die "ERROR found less than 16 columns in nhmmer tabular output at line: $line"; }
+  my ($target, $query, $seqfrom, $seqto, $strand, $evalue, $score) = 
+      ($el_A[0], $el_A[2], $el_A[6], $el_A[7], $el_A[11], $el_A[12], $el_A[13]);
+
+  return($target, $query, $seqfrom, $seqto, $strand, $score, $evalue);
+}
+
+#################################################################
+# Subroutine:  parse_hmmsearch_tblout_line()
+# Incept:      EPN, Fri Dec  8 09:47:19 2017
+#
+# Purpose:     Given an hmmsearch --tblout line, 
+#              return $target, $query, $score, $evalue.
+#
+#     # Example line
+#     #                                                               --- full sequence ---- --- best 1 domain ---- --- domain number estimation ----
+#     # target name        accession  query name           accession    E-value  score  bias   E-value  score  bias   exp reg clu  ov env dom rep inc description of target
+#     #------------------- ---------- -------------------- ---------- --------- ------ ----- --------- ------ -----   --- --- --- --- --- --- --- --- ---------------------
+#     5S_rRNA-sample10     -          5S_rRNA              RF00001      1.1e-19   59.8   0.0   1.2e-19   59.7   0.0   1.0   1   0   0   1   1   1   1 -
+#
+# Arguments:
+#   $line:             line to parse
+#   $do_best:          '1' to return score and E-value of best hit, not full sequence
+#                      '0' to return score and E-value of sequence, not best hit
+#
+# Returns:    $target: name of target       (5S_rRNA-sample10)
+#             $query:  query name           (5S_rRNA)
+#             $score:  bit score of sequence  (53.3)
+#             $evalue: E-value of hit      (1.6e-17)
+#
+# Dies:       if line has fewer than 19 space delimited characters
+#################################################################
+sub parse_hmmsearch_tblout_line { 
+  my $sub_name = "parse_hmmsearch_tblout_line";
+  my $nargs_expected = 2;
+  if(scalar(@_) != $nargs_expected) { printf STDERR ("ERROR, $sub_name entered with %d != %d input arguments.\n", scalar(@_), $nargs_expected); exit(1); } 
+
+  my ($line, $do_best) = @_;
+  
+  my @el_A = split(/\s+/, $line);
+
+  if(scalar(@el_A) < 19) { die "ERROR found less than 16 columns in nhmmer tabular output at line: $line"; }
+  my ($target, $query, $full_evalue, $full_score, $best_evalue, $best_score) = 
+      ($el_A[0], $el_A[2], $el_A[4], $el_A[5], $el_A[7], $el_A[8]);
+
+  if($do_best) { 
+    return ($target, $query, $best_score, $best_evalue);
+  }
+  # else
+  return ($target, $query, $full_score, $full_evalue);
 }
