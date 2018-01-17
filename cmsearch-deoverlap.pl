@@ -331,7 +331,7 @@ sub parse_sorted_tblout_file {
       $nremoved++;
       $keepme_A[$nhits] = 0;
       if($do_debug) { 
-        printf("Removing $seqfrom..$seqto, it overlapped with $seqfrom_A[$overlap_idx]..$seqto_A[$overlap_idx]\n");
+        printf("target: $target model: $model: removing $seqfrom..$seqto, it overlapped with $seqfrom_A[$overlap_idx]..$seqto_A[$overlap_idx]\n");
       }
     }
     $nhits++;
