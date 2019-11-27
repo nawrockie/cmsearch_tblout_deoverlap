@@ -35,7 +35,7 @@ use Getopt::Long;
 my $in_tblout  = "";   # name of input tblout file
 
 my $usage;
-$usage  = "cmsearch-deoverlap v0.03 [Nov 2019]\n\n";
+$usage  = "cmsearch-deoverlap v0.04 [Nov 2019]\n\n";
 $usage .= "Usage:\n\n";
 $usage .= "cmsearch-deoverlap.pl    [OPTIONS] <tblout file>\n\tOR\n";
 $usage .= "cmsearch-deoverlap.pl -l [OPTIONS] <list of tblout files>\n\n";
@@ -69,7 +69,7 @@ my $do_dirty         = 0;     # set to '1' if --dirty used, keep intermediate fi
              "s"          => \$rank_by_score,
              "d"          => \$do_debug,
              "v"          => \$be_verbose,
-             "noverlap=s" => \$be_verbose,
+             "noverlap=s" => \$noverlap,
              "nhmmer"     => \$do_nhmmer,
              "hmmsearch"  => \$do_hmmsearch,
              "besthmm"    => \$do_besthmm,
