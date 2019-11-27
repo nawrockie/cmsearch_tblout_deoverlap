@@ -35,24 +35,28 @@ use Getopt::Long;
 my $in_tblout  = "";   # name of input tblout file
 
 my $usage;
-$usage  = "cmsearch-deoverlap v0.02 [Dec 2017]\n\n";
+$usage  = "cmsearch-deoverlap v0.03 [Nov 2019]\n\n";
 $usage .= "Usage:\n\n";
 $usage .= "cmsearch-deoverlap.pl    [OPTIONS] <tblout file>\n\tOR\n";
 $usage .= "cmsearch-deoverlap.pl -l [OPTIONS] <list of tblout files>\n\n";
 $usage .= "\tOPTIONS:\n";
-$usage .= "\t\t-l           : single command line argument is a list of tblout files, not a single tblout file\n";
-$usage .= "\t\t-s           : sort hits by bit score [default: sort by E-value]\n";
-$usage .= "\t\t-d           : run in debugging mode (prints extra info)\n";
-$usage .= "\t\t--nhmmer     : tblout files are from nhmmer v3.x\n";
-$usage .= "\t\t--hmmsearch  : tblout files are from hmmsearch v3.x\n";
-$usage .= "\t\t--besthmm    : with --hmmsearch, sort by evalue/score of *best* single hit not evalue/score of full seq\n";
-$usage .= "\t\t--clanin <s> : only remove overlaps within clans, read clan info from file <s> [default: remove all overlaps]\n";
-$usage .= "\t\t--maxkeep    : keep hits that only overlap with other hits that are not kept [default: remove all hits with higher scoring overlap]\n";
-$usage .= "\t\t--dirty      : keep intermediate files (sorted tblout files)\n\n";
+$usage .= "\t\t-l             : single command line argument is a list of tblout files, not a single tblout file\n";
+$usage .= "\t\t-s             : sort hits by bit score [default: sort by E-value]\n";
+$usage .= "\t\t-d             : run in debugging mode (prints extra info)\n";
+$usage .= "\t\t-v             : run in verbose mode (prints all removed and kept hits)\n";
+$usage .= "\t\t--noverlap <n> : define an overlap as >= <n> or more overlapping residues [1]\n";
+$usage .= "\t\t--nhmmer       : tblout files are from nhmmer v3.x\n";
+$usage .= "\t\t--hmmsearch    : tblout files are from hmmsearch v3.x\n";
+$usage .= "\t\t--besthmm      : with --hmmsearch, sort by evalue/score of *best* single hit not evalue/score of full seq\n";
+$usage .= "\t\t--clanin <s>   : only remove overlaps within clans, read clan info from file <s> [default: remove all overlaps]\n";
+$usage .= "\t\t--maxkeep      : keep hits that only overlap with other hits that are not kept [default: remove all hits with higher scoring overlap]\n";
+$usage .= "\t\t--dirty        : keep intermediate files (sorted tblout files)\n\n";
 
 my $do_listfile      = 0;     # set to '1' if -l used
 my $rank_by_score    = 0;     # set to '1' if -s used, rank by score, not evalues
 my $do_debug         = 0;     # set to '1' if -d used
+my $be_verbose       = 0;     # set to '1' if -v used
+my $noverlap         = 1;     # set to <n> if --noverlap <n> used
 my $in_clanin        = undef; # defined if --clanin option used
 my $do_nhmmer        = 0;     # set to '1' if --nhmmer used, input tblout file(s) are from hmmer3's nhmmer
 my $do_hmmsearch     = 0;     # set to '1' if --hmmsearch used, input tblout file(s) are from hmmer3's hmmsearch
@@ -61,15 +65,17 @@ my $do_maxkeep       = 0;     # set to '1' if --maxkeep, only remove hits that h
                               # higher scoring overlap that is not removed
 my $do_dirty         = 0;     # set to '1' if --dirty used, keep intermediate files
 
-&GetOptions( "l"         => \$do_listfile, 
-             "s"         => \$rank_by_score,
-             "d"         => \$do_debug,
-             "nhmmer"    => \$do_nhmmer,
-             "hmmsearch" => \$do_hmmsearch,
-             "besthmm"   => \$do_besthmm,
-             "clanin=s"  => \$in_clanin,
-             "maxkeep"   => \$do_maxkeep, 
-             "keep"      => \$do_dirty);
+&GetOptions( "l"          => \$do_listfile, 
+             "s"          => \$rank_by_score,
+             "d"          => \$do_debug,
+             "v"          => \$be_verbose,
+             "noverlap=s" => \$be_verbose,
+             "nhmmer"     => \$do_nhmmer,
+             "hmmsearch"  => \$do_hmmsearch,
+             "besthmm"    => \$do_besthmm,
+             "clanin=s"   => \$in_clanin,
+             "maxkeep"    => \$do_maxkeep, 
+             "keep"       => \$do_dirty);
 
 if(scalar(@ARGV) != 1) { die $usage; }
 ($in_tblout) = @ARGV;
@@ -158,7 +164,7 @@ foreach my $tblout_file (@tblout_file_A) {
   $out_FH = undef;
   open($out_FH, ">", $output_file) || die "ERROR unable to open $output_file for writing"; 
   ($nkept, $nremoved) = parse_sorted_tblout_file($sorted_tblout_file, (defined $in_clanin) ? \%clan_H : undef, 
-                                                 $do_nhmmer, $do_hmmsearch, $do_besthmm, $rank_by_score, $do_maxkeep, $do_debug, $out_FH);
+                                                 $do_nhmmer, $do_hmmsearch, $do_besthmm, $rank_by_score, $do_maxkeep, $do_debug, $be_verbose, $out_FH);
   close $out_FH;
   if(! $do_dirty) { 
     #unlink $sorted_tblout_file;
@@ -186,6 +192,7 @@ foreach my $tblout_file (@tblout_file_A) {
 #                      only remove hits with higher scoring overlaps
 #                      *THAT ARE NOT THEMSELVES REMOVED*
 #   $do_debug;         '1' if we should print debugging output
+#   $be_verbose;       '1' if we should be verbose
 #   $out_FH:           file handle to output to
 #
 # Returns:     Two values: 
@@ -197,11 +204,11 @@ foreach my $tblout_file (@tblout_file_A) {
 #
 ################################################################# 
 sub parse_sorted_tblout_file { 
-  my $nargs_expected = 9;
+  my $nargs_expected = 10;
   my $sub_name = "parse_sorted_tblout_file";
   if(scalar(@_) != $nargs_expected) { printf STDERR ("ERROR, $sub_name entered with %d != %d input arguments.\n", scalar(@_), $nargs_expected); exit(1); } 
 
-  my ($sorted_tbl_file, $clan_HR, $do_nhmmer, $do_hmmsearch, $do_besthmm, $rank_by_score, $do_maxkeep, $do_debug, $out_FH) = @_;
+  my ($sorted_tbl_file, $clan_HR, $do_nhmmer, $do_hmmsearch, $do_besthmm, $rank_by_score, $do_maxkeep, $do_debug, $be_verbose, $out_FH) = @_;
 
   my $prv_target = undef; # target name of previous line
   my $prv_score  = undef; # bit score of previous line
@@ -216,13 +223,14 @@ sub parse_sorted_tblout_file {
   my ($target, $model, $domain, $mdlfrom, $mdlto, $seqfrom, $seqto, $strand, $score, $evalue) = 
       (undef, undef, undef, undef, undef, undef, undef, undef, undef, undef);
 
-  my @line_A    = (); # array of output lines for kept hits for current sequence
-  my @seqfrom_A = (); # array of seqfroms for kept hits for current sequence
-  my @seqto_A   = (); # array of seqtos for kept hits for current sequence
-  my @strand_A  = (); # array of strands for kept hits for current sequence
-  my @clan_A    = (); # array of clans for kept hits for current sequence
-  my @keepme_A  = (); # array of '1' and '0', '1' if we should keep this hit, '0' if it had a higher scoring overlap
-  my $nhits     = 0;  # number of hits for current sequence (size of all arrays)
+  my @line_A      = (); # array of output lines for kept hits for current sequence
+  my @seqfrom_A   = (); # array of seqfroms for kept hits for current sequence
+  my @seqto_A     = (); # array of seqtos for kept hits for current sequence
+  my @strand_A    = (); # array of strands for kept hits for current sequence
+  my @clan_A      = (); # array of clans for kept hits for current sequence
+  my @keepme_A    = (); # array of '1' and '0', '1' if we should keep this hit, '0' if it had a higher scoring overlap
+  my @noverlaps_A = (); # array of number of hits (lower scoring) that overlap with this sequence, **only valid for kept hits, -1 for removed hits**
+  my $nhits       = 0;  # number of hits for current sequence (size of all arrays)
 
   my %already_seen_H = (); # hash, key is sequence name, value is '1' if we have output info for this sequence
 
@@ -273,15 +281,16 @@ sub parse_sorted_tblout_file {
     # If yes, output info for it, and re-initialize data structures
     # for new sequence just read
     if((defined $prv_target) && ($prv_target ne $target)) { 
-      output_one_target($out_FH, \@line_A, \@keepme_A);
+      output_one_target($out_FH, $be_verbose, \@line_A, \@keepme_A, \@noverlaps_A);
       $already_seen_H{$prv_target} = 1; 
-      @line_A    = ();
-      @seqfrom_A = ();
-      @seqto_A   = ();
-      @strand_A  = ();
-      @clan_A    = ();
-      @keepme_A  = ();
-      $nhits     = 0;
+      @line_A      = ();
+      @seqfrom_A   = ();
+      @seqto_A     = ();
+      @strand_A    = ();
+      @clan_A      = ();
+      @keepme_A    = ();
+      @noverlaps_A = ();
+      $nhits       = 0;
     }
     else { # this is not a new sequence
       if(defined $prv_target) { 
@@ -305,12 +314,12 @@ sub parse_sorted_tblout_file {
       if(($strand_A[$i] eq $strand) &&                                # same strand
          (determine_if_clans_match($do_clans, $clan, $clan_A[$i])) && # clans match, or --clanin not used
          ((! $do_maxkeep) || ($keepme_A[$i] == 1))) {                 # either --maxkeep not enabled, or this hit is a keepter
-        if(($strand eq "+") && (get_overlap($seqfrom, $seqto, $seqfrom_A[$i], $seqto_A[$i]) > 0)) { 
+        if(($strand eq "+") && (get_overlap($seqfrom, $seqto, $seqfrom_A[$i], $seqto_A[$i]) >= $noverlap)) { 
           $keep_me = 0;
           $overlap_idx = $i;
           $i = $nhits; # breaks for loop
         }
-        elsif(($strand eq "-") && (get_overlap($seqto, $seqfrom, $seqto_A[$i], $seqfrom_A[$i]) > 0)) { 
+        elsif(($strand eq "-") && (get_overlap($seqto, $seqfrom, $seqto_A[$i], $seqfrom_A[$i]) >= $noverlap)) { 
           $keep_me = 0;
           $overlap_idx = $i;
           $i = $nhits; # breaks for loop
@@ -326,12 +335,19 @@ sub parse_sorted_tblout_file {
     if($keep_me) { 
       $nkept++;
       $keepme_A[$nhits] = 1;
+      $noverlaps_A[$nhits] = 0;
     }
     else { 
       $nremoved++;
       $keepme_A[$nhits] = 0;
+      $noverlaps_A[$nhits] = -1;
+      $noverlaps_A[$overlap_idx]++;
       if($do_debug) { 
-        printf("Removing $seqfrom..$seqto, it overlapped with $seqfrom_A[$overlap_idx]..$seqto_A[$overlap_idx]\n");
+        printf("target: $target model: $model: removing $seqfrom..$seqto, it overlapped with $seqfrom_A[$overlap_idx]..$seqto_A[$overlap_idx]\n");
+      }
+      if($be_verbose) { 
+        printf("REMOVED                    $line\n");
+        printf("BECAUSE-IT-OVERLAPPED-WITH $line_A[$overlap_idx]\n");
       }
     }
     $nhits++;
@@ -341,7 +357,7 @@ sub parse_sorted_tblout_file {
   }
 
   # output data for final sequence
-  output_one_target($out_FH, \@line_A, \@keepme_A);
+  output_one_target($out_FH, $be_verbose, \@line_A, \@keepme_A, \@noverlaps_A);
 
   # close file handle
   close(IN);
@@ -357,9 +373,11 @@ sub parse_sorted_tblout_file {
 #              are not included, they've been skipped.
 #              
 # Arguments: 
-#   $out_FH:      file handle to output short output to (can be undef to not output short output)
-#   $line_AR:     array of lines to output
-#   $keepme_AR:   array of '1', '0', $keepme_AR->[$i]==1 indicates we should output $line_AR->[$i]
+#   $out_FH:        file handle to output short output to (can be undef to not output short output)
+#   $be_verbose:    '1' to output number of overlaps for each kept hit to stdout
+#   $line_AR:       array of lines to output
+#   $keepme_AR:     array of '1', '0', $keepme_AR->[$i]==1 indicates we should output $line_AR->[$i]
+#   $noverlaps_AR:  array of '1', '0', $keepme_AR->[$i]==1 indicates we should output $line_AR->[$i]
 #
 # Returns:     Nothing.
 # 
@@ -367,15 +385,16 @@ sub parse_sorted_tblout_file {
 #
 ################################################################# 
 sub output_one_target { 
-  my $nargs_expected = 3;
+  my $nargs_expected = 5;
   my $sub_name = "output_one_target";
   if(scalar(@_) != $nargs_expected) { printf STDERR ("ERROR, $sub_name entered with %d != %d input arguments.\n", scalar(@_), $nargs_expected); exit(1); } 
 
-  my ($out_FH, $line_AR, $keepme_AR) = @_;
+  my ($out_FH, $be_verbose, $line_AR, $keepme_AR, $noverlaps_AR) = @_;
 
   for(my $i = 0; $i < scalar(@{$line_AR}); $i++) { 
     if($keepme_AR->[$i]) { 
       print $out_FH $line_AR->[$i]; 
+      if($be_verbose) { printf("NUM-OVERLAPS:%d $line_AR->[$i]", $noverlaps_AR->[$i]) };
     }
   }
 

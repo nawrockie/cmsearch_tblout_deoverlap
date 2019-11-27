@@ -1,13 +1,13 @@
-EPN, Fri Dec  8 10:39:24 2017
+EPN, Wed Nov 27 11:29:00 2019
 
-Version 0.02
+Version 0.03
 
 cmsearch-deoverlap.pl: remove lower scoring overlaps from cmsearch
                        --tblout files.
 
 Usage:
 $ perl ./cmsearch-deoverlap.pl 
-cmsearch-deoverlap v0.02 [Dec 2017]
+cmsearch-deoverlap v0.03 [Nov 2019]
 
 Usage:
 
@@ -16,15 +16,17 @@ cmsearch-deoverlap.pl    [OPTIONS] <tblout file>
 cmsearch-deoverlap.pl -l [OPTIONS] <list of tblout files>
 
 	OPTIONS:
-		-l           : single command line argument is a list of tblout files, not a single tblout file
-		-s           : sort hits by bit score [default: sort by E-value]
-		-d           : run in debugging mode (prints extra info)
-		--nhmmer     : tblout files are from nhmmer v3.x
-		--hmmsearch  : tblout files are from hmmsearch v3.x
-		--besthmm    : with --hmmsearch, sort by evalue/score of *best* single hit not evalue/score of full seq
-		--clanin <s> : only remove overlaps within clans, read clan info from file <s> [default: remove all overlaps]
-		--maxkeep    : keep hits that only overlap with other hits that are not kept [default: remove all hits with higher scoring overlap]
-		--dirty      : keep intermediate files (sorted tblout files)
+		-l             : single command line argument is a list of tblout files, not a single tblout file
+		-s             : sort hits by bit score [default: sort by E-value]
+		-d             : run in debugging mode (prints extra info)
+		-v             : run in verbose mode (prints all removed and kept hits)
+		--noverlap <n> : define an overlap as >= <n> or more overlapping residues [1]
+		--nhmmer       : tblout files are from nhmmer v3.x
+		--hmmsearch    : tblout files are from hmmsearch v3.x
+		--besthmm      : with --hmmsearch, sort by evalue/score of *best* single hit not evalue/score of full seq
+		--clanin <s>   : only remove overlaps within clans, read clan info from file <s> [default: remove all overlaps]
+		--maxkeep      : keep hits that only overlap with other hits that are not kept [default: remove all hits with higher scoring overlap]
+		--dirty        : keep intermediate files (sorted tblout files)
 
 
 --------
