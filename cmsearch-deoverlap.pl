@@ -35,26 +35,28 @@ use Getopt::Long;
 my $in_tblout  = "";   # name of input tblout file
 
 my $usage;
-$usage  = "cmsearch-deoverlap v0.02 [Dec 2017]\n\n";
+$usage  = "cmsearch-deoverlap v0.03 [Nov 2019]\n\n";
 $usage .= "Usage:\n\n";
 $usage .= "cmsearch-deoverlap.pl    [OPTIONS] <tblout file>\n\tOR\n";
 $usage .= "cmsearch-deoverlap.pl -l [OPTIONS] <list of tblout files>\n\n";
 $usage .= "\tOPTIONS:\n";
-$usage .= "\t\t-l           : single command line argument is a list of tblout files, not a single tblout file\n";
-$usage .= "\t\t-s           : sort hits by bit score [default: sort by E-value]\n";
-$usage .= "\t\t-d           : run in debugging mode (prints extra info)\n";
-$usage .= "\t\t-v           : run in verbose mode (prints all removed and kept hits)\n";
-$usage .= "\t\t--nhmmer     : tblout files are from nhmmer v3.x\n";
-$usage .= "\t\t--hmmsearch  : tblout files are from hmmsearch v3.x\n";
-$usage .= "\t\t--besthmm    : with --hmmsearch, sort by evalue/score of *best* single hit not evalue/score of full seq\n";
-$usage .= "\t\t--clanin <s> : only remove overlaps within clans, read clan info from file <s> [default: remove all overlaps]\n";
-$usage .= "\t\t--maxkeep    : keep hits that only overlap with other hits that are not kept [default: remove all hits with higher scoring overlap]\n";
-$usage .= "\t\t--dirty      : keep intermediate files (sorted tblout files)\n\n";
+$usage .= "\t\t-l             : single command line argument is a list of tblout files, not a single tblout file\n";
+$usage .= "\t\t-s             : sort hits by bit score [default: sort by E-value]\n";
+$usage .= "\t\t-d             : run in debugging mode (prints extra info)\n";
+$usage .= "\t\t-v             : run in verbose mode (prints all removed and kept hits)\n";
+$usage .= "\t\t--noverlap <n> : define an overlap as >= <n> or more overlapping residues [1]\n";
+$usage .= "\t\t--nhmmer       : tblout files are from nhmmer v3.x\n";
+$usage .= "\t\t--hmmsearch    : tblout files are from hmmsearch v3.x\n";
+$usage .= "\t\t--besthmm      : with --hmmsearch, sort by evalue/score of *best* single hit not evalue/score of full seq\n";
+$usage .= "\t\t--clanin <s>   : only remove overlaps within clans, read clan info from file <s> [default: remove all overlaps]\n";
+$usage .= "\t\t--maxkeep      : keep hits that only overlap with other hits that are not kept [default: remove all hits with higher scoring overlap]\n";
+$usage .= "\t\t--dirty        : keep intermediate files (sorted tblout files)\n\n";
 
 my $do_listfile      = 0;     # set to '1' if -l used
 my $rank_by_score    = 0;     # set to '1' if -s used, rank by score, not evalues
 my $do_debug         = 0;     # set to '1' if -d used
 my $be_verbose       = 0;     # set to '1' if -v used
+my $noverlap         = 1;     # set to <n> if --noverlap <n> used
 my $in_clanin        = undef; # defined if --clanin option used
 my $do_nhmmer        = 0;     # set to '1' if --nhmmer used, input tblout file(s) are from hmmer3's nhmmer
 my $do_hmmsearch     = 0;     # set to '1' if --hmmsearch used, input tblout file(s) are from hmmer3's hmmsearch
@@ -63,16 +65,17 @@ my $do_maxkeep       = 0;     # set to '1' if --maxkeep, only remove hits that h
                               # higher scoring overlap that is not removed
 my $do_dirty         = 0;     # set to '1' if --dirty used, keep intermediate files
 
-&GetOptions( "l"         => \$do_listfile, 
-             "s"         => \$rank_by_score,
-             "d"         => \$do_debug,
-             "v"         => \$be_verbose,
-             "nhmmer"    => \$do_nhmmer,
-             "hmmsearch" => \$do_hmmsearch,
-             "besthmm"   => \$do_besthmm,
-             "clanin=s"  => \$in_clanin,
-             "maxkeep"   => \$do_maxkeep, 
-             "keep"      => \$do_dirty);
+&GetOptions( "l"          => \$do_listfile, 
+             "s"          => \$rank_by_score,
+             "d"          => \$do_debug,
+             "v"          => \$be_verbose,
+             "noverlap=s" => \$be_verbose,
+             "nhmmer"     => \$do_nhmmer,
+             "hmmsearch"  => \$do_hmmsearch,
+             "besthmm"    => \$do_besthmm,
+             "clanin=s"   => \$in_clanin,
+             "maxkeep"    => \$do_maxkeep, 
+             "keep"       => \$do_dirty);
 
 if(scalar(@ARGV) != 1) { die $usage; }
 ($in_tblout) = @ARGV;
@@ -311,12 +314,12 @@ sub parse_sorted_tblout_file {
       if(($strand_A[$i] eq $strand) &&                                # same strand
          (determine_if_clans_match($do_clans, $clan, $clan_A[$i])) && # clans match, or --clanin not used
          ((! $do_maxkeep) || ($keepme_A[$i] == 1))) {                 # either --maxkeep not enabled, or this hit is a keepter
-        if(($strand eq "+") && (get_overlap($seqfrom, $seqto, $seqfrom_A[$i], $seqto_A[$i]) > 0)) { 
+        if(($strand eq "+") && (get_overlap($seqfrom, $seqto, $seqfrom_A[$i], $seqto_A[$i]) >= $noverlap)) { 
           $keep_me = 0;
           $overlap_idx = $i;
           $i = $nhits; # breaks for loop
         }
-        elsif(($strand eq "-") && (get_overlap($seqto, $seqfrom, $seqto_A[$i], $seqfrom_A[$i]) > 0)) { 
+        elsif(($strand eq "-") && (get_overlap($seqto, $seqfrom, $seqto_A[$i], $seqfrom_A[$i]) >= $noverlap)) { 
           $keep_me = 0;
           $overlap_idx = $i;
           $i = $nhits; # breaks for loop
