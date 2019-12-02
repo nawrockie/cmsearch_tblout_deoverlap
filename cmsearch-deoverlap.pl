@@ -47,6 +47,7 @@ $usage .= "\t\t-v             : run in verbose mode (prints all removed and kept
 $usage .= "\t\t--noverlap <n> : define an overlap as >= <n> or more overlapping residues [1]\n";
 $usage .= "\t\t--nhmmer       : tblout files are from nhmmer v3.x\n";
 $usage .= "\t\t--hmmsearch    : tblout files are from hmmsearch v3.x\n";
+$usage .= "\t\t--cmscan       : tblout files are from cmscan v1.1x, not cmsearch\n";
 $usage .= "\t\t--besthmm      : with --hmmsearch, sort by evalue/score of *best* single hit not evalue/score of full seq\n";
 $usage .= "\t\t--clanin <s>   : only remove overlaps within clans, read clan info from file <s> [default: remove all overlaps]\n";
 $usage .= "\t\t--maxkeep      : keep hits that only overlap with other hits that are not kept [default: remove all hits with higher scoring overlap]\n";
@@ -56,6 +57,7 @@ my $do_listfile      = 0;     # set to '1' if -l used
 my $rank_by_score    = 0;     # set to '1' if -s used, rank by score, not evalues
 my $do_debug         = 0;     # set to '1' if -d used
 my $be_verbose       = 0;     # set to '1' if -v used
+my $do_cmscan        = 0;     # set to '1' if --cmscan used
 my $noverlap         = 1;     # set to <n> if --noverlap <n> used
 my $in_clanin        = undef; # defined if --clanin option used
 my $do_nhmmer        = 0;     # set to '1' if --nhmmer used, input tblout file(s) are from hmmer3's nhmmer
@@ -69,6 +71,7 @@ my $do_dirty         = 0;     # set to '1' if --dirty used, keep intermediate fi
              "s"          => \$rank_by_score,
              "d"          => \$do_debug,
              "v"          => \$be_verbose,
+             "cmscan"     => \$do_cmscan,
              "noverlap=s" => \$noverlap,
              "nhmmer"     => \$do_nhmmer,
              "hmmsearch"  => \$do_hmmsearch,
@@ -153,9 +156,14 @@ foreach my $tblout_file (@tblout_file_A) {
         "grep -v ^\# $tblout_file | sort -k 1,1 -k 14,14rn -k 13,13g > $sorted_tblout_file" : 
         "grep -v ^\# $tblout_file | sort -k 1,1 -k 13,13g -k 14,14rn > $sorted_tblout_file";
   }
+  elsif($do_cmscan) { 
+    $sort_cmd = ((defined $rank_by_score) && ($rank_by_score == 1)) ? 
+      "grep -v ^\# $tblout_file | sort -k 3,3 -k 15,15rn -k 16,16g > $sorted_tblout_file" : 
+      "grep -v ^\# $tblout_file | sort -k 3,3 -k 16,16g -k 15,15rn > $sorted_tblout_file";
+  }
   else { 
     # cmsearch, default
-  $sort_cmd = ((defined $rank_by_score) && ($rank_by_score == 1)) ? 
+    $sort_cmd = ((defined $rank_by_score) && ($rank_by_score == 1)) ? 
       "grep -v ^\# $tblout_file | sort -k 1,1 -k 15,15rn -k 16,16g > $sorted_tblout_file" : 
       "grep -v ^\# $tblout_file | sort -k 1,1 -k 16,16g -k 15,15rn > $sorted_tblout_file";
   }
@@ -164,7 +172,7 @@ foreach my $tblout_file (@tblout_file_A) {
   $out_FH = undef;
   open($out_FH, ">", $output_file) || die "ERROR unable to open $output_file for writing"; 
   ($nkept, $nremoved) = parse_sorted_tblout_file($sorted_tblout_file, (defined $in_clanin) ? \%clan_H : undef, 
-                                                 $do_nhmmer, $do_hmmsearch, $do_besthmm, $rank_by_score, $do_maxkeep, $do_debug, $be_verbose, $out_FH);
+                                                 $do_cmscan, $do_nhmmer, $do_hmmsearch, $do_besthmm, $rank_by_score, $do_maxkeep, $do_debug, $be_verbose, $out_FH);
   close $out_FH;
   if(! $do_dirty) { 
     #unlink $sorted_tblout_file;
@@ -182,6 +190,7 @@ foreach my $tblout_file (@tblout_file_A) {
 # Arguments: 
 #   $sorted_tbl_file:  file with sorted tabular search results
 #   $clan_HR:          ref to hash of clan info, key is model, value is clan
+#   $do_cmscan:        '1' if we're parsing cmscan tblout output
 #   $do_nhmmer:        '1' if we're parsing nhmmer tblout output
 #   $do_hmmsearch:     '1' if we're parsing hmmsearch tblout output
 #   $do_besthmm:       '1' if we sorted hmmsearch tblout by best hit 
@@ -204,11 +213,11 @@ foreach my $tblout_file (@tblout_file_A) {
 #
 ################################################################# 
 sub parse_sorted_tblout_file { 
-  my $nargs_expected = 10;
+  my $nargs_expected = 11;
   my $sub_name = "parse_sorted_tblout_file";
   if(scalar(@_) != $nargs_expected) { printf STDERR ("ERROR, $sub_name entered with %d != %d input arguments.\n", scalar(@_), $nargs_expected); exit(1); } 
 
-  my ($sorted_tbl_file, $clan_HR, $do_nhmmer, $do_hmmsearch, $do_besthmm, $rank_by_score, $do_maxkeep, $do_debug, $be_verbose, $out_FH) = @_;
+  my ($sorted_tbl_file, $clan_HR, $do_cmscan, $do_nhmmer, $do_hmmsearch, $do_besthmm, $rank_by_score, $do_maxkeep, $do_debug, $be_verbose, $out_FH) = @_;
 
   my $prv_target = undef; # target name of previous line
   my $prv_score  = undef; # bit score of previous line
@@ -259,7 +268,11 @@ sub parse_sorted_tblout_file {
     elsif($do_nhmmer) { 
       ($target, $model, $seqfrom, $seqto, $strand, $score, $evalue) = parse_nhmmer_tblout_line($line);
     }
-    else { # default: cmsearch
+    elsif($do_cmscan) { 
+      # call parse_cmsearch_tblout_line, just reverse $model and $target
+      ($model, $target, $seqfrom, $seqto, $strand, $score, $evalue) = parse_cmsearch_tblout_line($line);
+    }
+    else { # default: cmsearch 
       ($target, $model, $seqfrom, $seqto, $strand, $score, $evalue) = parse_cmsearch_tblout_line($line);
     }
 
