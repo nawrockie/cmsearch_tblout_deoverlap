@@ -48,6 +48,7 @@ $usage .= "\t\t--noverlap <n> : define an overlap as >= <n> or more overlapping 
 $usage .= "\t\t--nhmmer       : tblout files are from nhmmer v3.x\n";
 $usage .= "\t\t--hmmsearch    : tblout files are from hmmsearch v3.x\n";
 $usage .= "\t\t--cmscan       : tblout files are from cmscan v1.1x, not cmsearch\n";
+$usage .= "\t\t--fcmsearch    : assert tblout files are cmsearch not cmscan\n";
 $usage .= "\t\t--besthmm      : with --hmmsearch, sort by evalue/score of *best* single hit not evalue/score of full seq\n";
 $usage .= "\t\t--clanin <s>   : only remove overlaps within clans, read clan info from file <s> [default: remove all overlaps]\n";
 $usage .= "\t\t--maxkeep      : keep hits that only overlap with other hits that are not kept [default: remove all hits with higher scoring overlap]\n";
@@ -58,6 +59,7 @@ my $rank_by_score    = 0;     # set to '1' if -s used, rank by score, not evalue
 my $do_debug         = 0;     # set to '1' if -d used
 my $be_verbose       = 0;     # set to '1' if -v used
 my $do_cmscan        = 0;     # set to '1' if --cmscan used
+my $do_fcmsearch     = 0;     # set to '1' if --fcmsearch used
 my $noverlap         = 1;     # set to <n> if --noverlap <n> used
 my $in_clanin        = undef; # defined if --clanin option used
 my $do_nhmmer        = 0;     # set to '1' if --nhmmer used, input tblout file(s) are from hmmer3's nhmmer
@@ -72,6 +74,7 @@ my $do_dirty         = 0;     # set to '1' if --dirty used, keep intermediate fi
              "d"          => \$do_debug,
              "v"          => \$be_verbose,
              "cmscan"     => \$do_cmscan,
+             "fcmsearch"  => \$do_fcmsearch,
              "noverlap=s" => \$noverlap,
              "nhmmer"     => \$do_nhmmer,
              "hmmsearch"  => \$do_hmmsearch,
@@ -229,8 +232,8 @@ sub parse_sorted_tblout_file {
 
   open(IN, $sorted_tbl_file) || die "ERROR unable to open sorted tabular file $sorted_tbl_file for reading";
 
-  my ($target, $model, $domain, $mdlfrom, $mdlto, $seqfrom, $seqto, $strand, $score, $evalue) = 
-      (undef, undef, undef, undef, undef, undef, undef, undef, undef, undef);
+  my ($target, $tacc, $model, $macc, $domain, $mdlfrom, $mdlto, $seqfrom, $seqto, $strand, $score, $evalue) = 
+      (undef, undef, undef, undef, undef, undef, undef, undef, undef, undef, undef, undef);
 
   my @line_A      = (); # array of output lines for kept hits for current sequence
   my @seqfrom_A   = (); # array of seqfroms for kept hits for current sequence
@@ -270,10 +273,13 @@ sub parse_sorted_tblout_file {
     }
     elsif($do_cmscan) { 
       # call parse_cmsearch_tblout_line, just reverse $model and $target
-      ($model, $target, $seqfrom, $seqto, $strand, $score, $evalue) = parse_cmsearch_tblout_line($line);
+      ($model, $macc, $target, $tacc, $seqfrom, $seqto, $strand, $score, $evalue) = parse_cmsearch_tblout_line($line);
     }
     else { # default: cmsearch 
-      ($target, $model, $seqfrom, $seqto, $strand, $score, $evalue) = parse_cmsearch_tblout_line($line);
+      ($target, $tacc, $model, $macc, $seqfrom, $seqto, $strand, $score, $evalue) = parse_cmsearch_tblout_line($line);
+      if((! $do_fcmsearch) && ($tacc =~ /^RF\d+/)) { 
+        die "ERROR, target accession $tacc looks like an Rfam accession suggesting this is cmscan tblout output,\ndid you mean to use --cmscan? Use --fcmsearch to assert this is cmsearch output and avoid this error.";
+      }
     }
 
     $clan = undef;
@@ -600,8 +606,10 @@ sub parse_claninfo {
 # Arguments:
 #   $line:  line to parse
 #
-# Returns:    $target: name of target       (5S_rRNA-sample10)
-#             $query:  query name           (5S_rRNA)
+# Returns:    $target:  name of target      (5S_rRNA-sample10)
+#             $tacc:    target accession    (-)
+#             $query:   query name          (5S_rRNA)
+#             $qacc:    query accession     (RF00005)
 #             $seqfrom: sequence from coord (1)
 #             $seqto:   sequence to coord   (121)
 #             $strand:  strand of hit       (+)
@@ -620,11 +628,10 @@ sub parse_cmsearch_tblout_line {
   my @el_A = split(/\s+/, $line);
 
   if(scalar(@el_A) < 18) { die "ERROR found less than 18 columns in cmsearch tabular output at line: $line"; }
-#    ($target, $query, $mdlfrom, $mdlto, $seqfrom, $seqto, $strand, $score, $evalue) = 
-  my ($target, $query, $seqfrom, $seqto, $strand, $score, $evalue) = 
-      ($el_A[0], $el_A[2], $el_A[7], $el_A[8], $el_A[9],  $el_A[14], $el_A[15]);
+  my ($target, $tacc, $query, $qacc, $seqfrom, $seqto, $strand, $score, $evalue) = 
+      ($el_A[0], $el_A[1], $el_A[2], $el_A[3], $el_A[7], $el_A[8], $el_A[9],  $el_A[14], $el_A[15]);
 
-  return($target, $query, $seqfrom, $seqto, $strand, $score, $evalue);
+  return($target, $tacc, $query, $qacc, $seqfrom, $seqto, $strand, $score, $evalue);
 }
 
 #################################################################
@@ -643,7 +650,9 @@ sub parse_cmsearch_tblout_line {
 #   $line:  line to parse
 #
 # Returns:    $target: name of target       (5S_rRNA-sample10)
-#             $query:  query name           (5S_rRNA)
+#             $tacc:    target accession    (-)
+#             $query:   query name          (5S_rRNA)
+#             $qacc:    query accession     (RF00005)
 #             $seqfrom: ali from coord      (4)
 #             $seqto:   ali to coord        (117)
 #             $strand:  strand of hit       (+)
@@ -662,10 +671,10 @@ sub parse_nhmmer_tblout_line {
   my @el_A = split(/\s+/, $line);
 
   if(scalar(@el_A) < 16) { die "ERROR found less than 16 columns in nhmmer tabular output at line: $line"; }
-  my ($target, $query, $seqfrom, $seqto, $strand, $evalue, $score) = 
-      ($el_A[0], $el_A[2], $el_A[6], $el_A[7], $el_A[11], $el_A[12], $el_A[13]);
+  my ($target, $tacc, $query, $qacc, $seqfrom, $seqto, $strand, $evalue, $score) = 
+      ($el_A[0], $el_A[1], $el_A[2], $el_A[3], $el_A[6], $el_A[7], $el_A[11], $el_A[12], $el_A[13]);
 
-  return($target, $query, $seqfrom, $seqto, $strand, $score, $evalue);
+  return($target, $tacc, $query, $qacc, $seqfrom, $seqto, $strand, $score, $evalue);
 }
 
 #################################################################
