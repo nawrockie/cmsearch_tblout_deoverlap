@@ -35,7 +35,7 @@ use Getopt::Long;
 my $in_tblout  = "";   # name of input tblout file
 
 my $usage;
-$usage  = "cmsearch-deoverlap v0.05 [Dec 2019]\n\n";
+$usage  = "cmsearch-deoverlap v0.06 [Dec 2019]\n\n";
 $usage .= "Usage:\n\n";
 $usage .= "cmsearch-deoverlap.pl    [OPTIONS] <tblout file>\n\tOR\n";
 $usage .= "cmsearch-deoverlap.pl -l [OPTIONS] <list of tblout files>\n\n";
@@ -278,7 +278,7 @@ sub parse_sorted_tblout_file {
     else { # default: cmsearch 
       ($target, $tacc, $model, $macc, $seqfrom, $seqto, $strand, $score, $evalue) = parse_cmsearch_tblout_line($line);
       if((! $do_fcmsearch) && ($tacc =~ /^RF\d+/)) { 
-        die "ERROR, target accession $tacc looks like an Rfam accession suggesting this is cmscan tblout output,\ndid you mean to use --cmscan? Use --fcmsearch to assert this is cmsearch output and avoid this error.";
+        die "ERROR, target accession $tacc looks like an Rfam accession suggesting this is cmscan tblout output,\ndid you mean to use --cmscan? Use --fcmsearch to assert this is cmsearch output and avoid this error.\n";
       }
     }
 
