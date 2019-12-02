@@ -1,13 +1,13 @@
-EPN, Wed Nov 27 16:50:33 2019
+EPN, Mon Dec  2 07:01:08 2019
 
-Version 0.04
+Version 0.05
 
 cmsearch-deoverlap.pl: remove lower scoring overlaps from cmsearch
                        --tblout files.
 
 Usage:
 $ perl ./cmsearch-deoverlap.pl 
-cmsearch-deoverlap v0.04 [Nov 2019]
+cmsearch-deoverlap v0.05 [Dec 2019]
 
 Usage:
 
@@ -23,6 +23,7 @@ cmsearch-deoverlap.pl -l [OPTIONS] <list of tblout files>
 		--noverlap <n> : define an overlap as >= <n> or more overlapping residues [1]
 		--nhmmer       : tblout files are from nhmmer v3.x
 		--hmmsearch    : tblout files are from hmmsearch v3.x
+		--cmscan       : tblout files are from cmscan v1.1x, not cmsearch
 		--besthmm      : with --hmmsearch, sort by evalue/score of *best* single hit not evalue/score of full seq
 		--clanin <s>   : only remove overlaps within clans, read clan info from file <s> [default: remove all overlaps]
 		--maxkeep      : keep hits that only overlap with other hits that are not kept [default: remove all hits with higher scoring overlap]
