@@ -150,7 +150,7 @@ my $nremoved           = undef; # number of sequences removed from a file
 my $overlap_FH = undef;
 if(defined $out_overlap) { 
   open($overlap_FH, ">", $out_overlap) || die "ERROR unable to open $out_overlap for writing";
-  printf $overlap_FH ("#%s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s\n", "target", "strand", "mdl1", "mdl2", "seqfrom1", "seqto1", "seqfrom2", "seqto2", "nolap", "sfolap1", "sfolap2", "mdllen1", "mdllen2", "mfolap1", "mfolap2", "desc1", "desc2");
+  printf $overlap_FH ("#%s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s\n", "1:target", "2:strand", "3:mdl1", "4:mdl2", "5:hitlen1", "6:hitlen2", "7:nres_olap", "8:seqfrom1", "9:seqto1", "10:seqfrom2", "11:seqto2", "12:olap-frac-of-hit1", "13:olap-frac-of-hit2", "14:mdllen1", "15:mdllen2", "16:hit-frac-of-mdl1", "17:hit-frac-of-mdl2", "18:desc1", "19:desc2");
 }
 
 foreach my $tblout_file (@tblout_file_A) { 
@@ -213,7 +213,10 @@ foreach my $tblout_file (@tblout_file_A) {
   if(! $do_dirty) { 
     unlink $sorted_tblout_file;
   }
-  printf("Saved %5d hits (%5d removed) to $output_file\n", $nkept, $nremoved)
+  printf("Saved %5d hits (%5d removed) to $output_file\n", $nkept, $nremoved);
+  if(defined $out_overlap) { 
+    printf("Saved tabular information on overlaps to $out_overlap\n");
+  }
 }
 
 #################################################################
@@ -436,11 +439,12 @@ sub parse_sorted_tblout_file {
         my $mdllen1  = ((defined $mdllen_HR) && (defined $mdllen_HR->{$model_A[$overlap_idx]})) ? $mdllen_HR->{$model_A[$overlap_idx]} : "-";
         my $mdllen2  = ((defined $mdllen_HR) && (defined $mdllen_HR->{$model})) ? $mdllen_HR->{$model} : "-";
 
-        printf $overlap_FH ("%-s %s %s %s %d %d %d %d %d %.3f %.3f %s %s %s %s %s %s\n", 
+        printf $overlap_FH ("%-s %s %s %s %d %d %d %d %d %d %d %.3f %.3f %s %s %s %s %s %s\n", 
                             $target, $strand, $model_A[$overlap_idx], $model, 
+                            $hitlen1, $hitlen2, $cur_noverlap,
                             $seqfrom_A[$overlap_idx], $seqto_A[$overlap_idx], 
                             $seqfrom, $seqto, 
-                            $cur_noverlap, $cur_noverlap/$hitlen1, $cur_noverlap/$hitlen2, 
+                            $cur_noverlap/$hitlen1, $cur_noverlap/$hitlen2, 
                             $mdllen1, $mdllen2, 
                             (($mhitlen1 ne "-") && ($mdllen1 ne "-")) ? (sprintf("%.3f", $mhitlen1/$mdllen1)) : "-",
                             (($mhitlen2 ne "-") && ($mdllen2 ne "-")) ? (sprintf("%.3f", $mhitlen2/$mdllen2)) : "-", 
