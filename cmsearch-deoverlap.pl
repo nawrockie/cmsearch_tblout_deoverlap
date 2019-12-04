@@ -150,7 +150,38 @@ my $nremoved           = undef; # number of sequences removed from a file
 my $overlap_FH = undef;
 if(defined $out_overlap) { 
   open($overlap_FH, ">", $out_overlap) || die "ERROR unable to open $out_overlap for writing";
-  printf $overlap_FH ("#%s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s\n", "1:target", "2:strand", "3:mdl1", "4:mdl2", "5:hitlen1", "6:hitlen2", "7:nres_olap", "8:seqfrom1", "9:seqto1", "10:seqfrom2", "11:seqto2", "12:olap-frac-of-hit1", "13:olap-frac-of-hit2", "14:mdllen1", "15:mdllen2", "16:hit-frac-of-mdl1", "17:hit-frac-of-mdl2", "18:desc1", "19:desc2");
+  my @fields_A = ();
+  push(@fields_A, "target");
+  push(@fields_A, "strand");
+  push(@fields_A, "mdl1");
+  push(@fields_A, "mdl2");
+  push(@fields_A, "hitlen1");
+  push(@fields_A, "hitlen2");
+  push(@fields_A, "nres_olap");
+  push(@fields_A, "score1");
+  push(@fields_A, "score2");
+  push(@fields_A, "evalue1");
+  push(@fields_A, "evalue2");
+  push(@fields_A, "seqfrom1");
+  push(@fields_A, "seqto1");
+  push(@fields_A, "seqfrom2");
+  push(@fields_A, "seqto2");
+  push(@fields_A, "olap-frac-of-hit1");
+  push(@fields_A, "olap-frac-of-hit2");
+  push(@fields_A, "mdllen1");
+  push(@fields_A, "mdllen2");
+  push(@fields_A, "hit-frac-of-mdl1");
+  push(@fields_A, "hit-frac-of-mdl2");
+  push(@fields_A, "desc1");
+  push(@fields_A, "desc2");
+  print $overlap_FH ("#"); 
+  my $fidx = 1;
+  foreach my $field (@fields_A) { 
+    if($fidx > 1) { print $overlap_FH (" "); }
+    printf $overlap_FH ("%d:%s", $fidx, $field);
+    $fidx++;
+  }
+  print $overlap_FH ("\n");
 }
 
 foreach my $tblout_file (@tblout_file_A) { 
@@ -288,6 +319,8 @@ sub parse_sorted_tblout_file {
   my @mdlto_A     = (); # array of mdltos for kept hits for current sequence
   my @model_A     = (); # array of model names for kept hits for current sequence
   my @desc_A      = (); # array of descriptions for kept hits for current sequence
+  my @score_A     = (); # array of scores for kept hits for current sequence
+  my @evalue_A    = (); # array of e-values for kept hits for current sequence
   my $do_desc = (defined $overlap_FH) ? 1 : 0;
 
   my %already_seen_H = (); # hash, key is sequence name, value is '1' if we have output info for this sequence
@@ -361,6 +394,8 @@ sub parse_sorted_tblout_file {
       @mdlto_A     = ();
       @model_A     = ();
       @desc_A      = ();
+      @score_A     = ();
+      @evalue_A    = ();
       $nhits       = 0;
     }
     else { # this is not a new sequence
@@ -413,6 +448,8 @@ sub parse_sorted_tblout_file {
       $mdlto_A[$nhits]   = $mdlto;
       $model_A[$nhits]   = $model;
       $desc_A[$nhits]    = $desc;
+      $score_A[$nhits]   = $score;
+      $evalue_A[$nhits]  = $evalue;
     }
     if($keep_me) { 
       $nkept++;
@@ -439,9 +476,11 @@ sub parse_sorted_tblout_file {
         my $mdllen1  = ((defined $mdllen_HR) && (defined $mdllen_HR->{$model_A[$overlap_idx]})) ? $mdllen_HR->{$model_A[$overlap_idx]} : "-";
         my $mdllen2  = ((defined $mdllen_HR) && (defined $mdllen_HR->{$model})) ? $mdllen_HR->{$model} : "-";
 
-        printf $overlap_FH ("%-s %s %s %s %d %d %d %d %d %d %d %.3f %.3f %s %s %s %s %s %s\n", 
+        printf $overlap_FH ("%-s %s %s %s %d %d %d %s %s %s %s %d %d %d %d %.3f %.3f %s %s %s %s %s %s\n", 
                             $target, $strand, $model_A[$overlap_idx], $model, 
                             $hitlen1, $hitlen2, $cur_noverlap,
+                            $score_A[$overlap_idx], $score,
+                            $evalue_A[$overlap_idx], $evalue,
                             $seqfrom_A[$overlap_idx], $seqto_A[$overlap_idx], 
                             $seqfrom, $seqto, 
                             $cur_noverlap/$hitlen1, $cur_noverlap/$hitlen2, 
