@@ -329,16 +329,21 @@ sub parse_sorted_tblout_file {
     # if (  $do_maxkeep) we only look at hits that haven't been removed yet
     my $keep_me = 1; # set to '0' below if we find a better scoring hit
     my $overlap_idx = -1;
+    my $cur_noverlap = 0;
     for(my $i = 0; $i < $nhits; $i++) { 
       if(($strand_A[$i] eq $strand) &&                                # same strand
          (determine_if_clans_match($do_clans, $clan, $clan_A[$i])) && # clans match, or --clanin not used
          ((! $do_maxkeep) || ($keepme_A[$i] == 1))) {                 # either --maxkeep not enabled, or this hit is a keepter
-        if(($strand eq "+") && (get_overlap($seqfrom, $seqto, $seqfrom_A[$i], $seqto_A[$i]) >= $noverlap)) { 
-          $keep_me = 0;
-          $overlap_idx = $i;
-          $i = $nhits; # breaks for loop
+        if($strand eq "+") { 
+          $cur_noverlap = get_overlap($seqfrom, $seqto, $seqfrom_A[$i], $seqto_A[$i]);
         }
-        elsif(($strand eq "-") && (get_overlap($seqto, $seqfrom, $seqto_A[$i], $seqfrom_A[$i]) >= $noverlap)) { 
+        elsif($strand eq "-") { 
+          $cur_noverlap = get_overlap($seqto, $seqfrom, $seqto_A[$i], $seqfrom_A[$i]);
+        }
+        else { 
+          die "ERROR strand not + or - but $strand for hit $i line:\n$line\n";
+        }
+        if($cur_noverlap >= $noverlap) { 
           $keep_me = 0;
           $overlap_idx = $i;
           $i = $nhits; # breaks for loop
@@ -365,8 +370,8 @@ sub parse_sorted_tblout_file {
         printf("target: $target model: $model: removing $seqfrom..$seqto, it overlapped with $seqfrom_A[$overlap_idx]..$seqto_A[$overlap_idx]\n");
       }
       if($be_verbose) { 
-        printf("REMOVED                    $line\n");
-        printf("BECAUSE-IT-OVERLAPPED-WITH $line_A[$overlap_idx]\n");
+        printf("REMOVED                      %-*s  $line\n", length($cur_noverlap), "");
+        printf("BECAUSE-IT-OVERLAPPED-BY-" . $cur_noverlap . "-WITH $line_A[$overlap_idx]\n");
       }
     }
     $nhits++;
