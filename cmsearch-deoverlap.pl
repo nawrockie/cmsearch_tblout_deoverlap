@@ -55,7 +55,7 @@ $usage .= "\t\t--maxkeep        : keep hits that only overlap with other hits th
 $usage .= "\t\t--overlapout <s> : create new tabular file with overlap information in <s>\n";
 $usage .= "\t\t--mdllenin <s>   : w/--overlapout, read model lengths from two-token-per-line-file <s>\n";
 $usage .= "\t\t--dirty          : keep intermediate files (sorted tblout files)\n\n";
-
+ 
 my $do_listfile      = 0;     # set to '1' if -l used
 my $rank_by_score    = 0;     # set to '1' if -s used, rank by score, not evalues
 my $do_debug         = 0;     # set to '1' if -d used
@@ -436,7 +436,7 @@ sub parse_sorted_tblout_file {
         my $mdllen1  = ((defined $mdllen_HR) && (defined $mdllen_HR->{$model_A[$overlap_idx]})) ? $mdllen_HR->{$model_A[$overlap_idx]} : "-";
         my $mdllen2  = ((defined $mdllen_HR) && (defined $mdllen_HR->{$model})) ? $mdllen_HR->{$model} : "-";
 
-        printf $overlap_FH ("%-s %s  %s  %s %d %d %d %d %d %.3f %.3f %s %s %s %s %s %s\n", 
+        printf $overlap_FH ("%-s %s %s %s %d %d %d %d %d %.3f %.3f %s %s %s %s %s %s\n", 
                             $target, $strand, $model_A[$overlap_idx], $model, 
                             $seqfrom_A[$overlap_idx], $seqto_A[$overlap_idx], 
                             $seqfrom, $seqto, 
