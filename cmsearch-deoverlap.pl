@@ -51,6 +51,7 @@ $usage .= "\t\t--cmscan         : tblout files are from cmscan v1.1x, not cmsear
 $usage .= "\t\t--fcmsearch      : assert tblout files are cmsearch not cmscan\n";
 $usage .= "\t\t--besthmm        : with --hmmsearch, sort by evalue/score of *best* single hit not evalue/score of full seq\n";
 $usage .= "\t\t--clanin <s>     : only remove overlaps within clans, read clan info from file <s> [default: remove all overlaps]\n";
+$usage .= "\t\t--invclan        : w/--clanin, invert clan behavior: do not remove overlaps within clans, remove all other overlaps\n";
 $usage .= "\t\t--maxkeep        : keep hits that only overlap with other hits that are not kept [default: remove all hits with higher scoring overlap]\n";
 $usage .= "\t\t--overlapout <s> : create new tabular file with overlap information in <s>\n";
 $usage .= "\t\t--mdllenin <s>   : w/--overlapout, read model lengths from two-token-per-line-file <s>\n";
@@ -64,6 +65,7 @@ my $do_cmscan        = 0;     # set to '1' if --cmscan used
 my $do_fcmsearch     = 0;     # set to '1' if --fcmsearch used
 my $noverlap         = 1;     # set to <n> if --noverlap <n> used
 my $in_clanin        = undef; # defined if --clanin option used
+my $do_invclan       = 0;     # set to '1' if --invclan used
 my $do_nhmmer        = 0;     # set to '1' if --nhmmer used, input tblout file(s) are from hmmer3's nhmmer
 my $do_hmmsearch     = 0;     # set to '1' if --hmmsearch used, input tblout file(s) are from hmmer3's hmmsearch
 my $do_besthmm       = 0;     # set to '1' if --besthmm used, sorting by evalue/score of best hit with --hmmsearch
@@ -84,6 +86,7 @@ my $in_mdllen        = undef; # defined if --mdllenin <s> used
              "hmmsearch"    => \$do_hmmsearch,
              "besthmm"      => \$do_besthmm,
              "clanin=s"     => \$in_clanin,
+             "invclan"      => \$do_invclan,
              "maxkeep"      => \$do_maxkeep, 
              "overlapout=s" => \$out_overlap,
              "mdllenin=s"   => \$in_mdllen,
@@ -98,7 +101,9 @@ if($do_hmmsearch && $do_nhmmer) {
 if($do_besthmm && (! $do_hmmsearch)) { 
   die "ERROR, --besthmm requires --hmmsearch."; 
 }  
-
+if($do_invclan && (! defined $in_clanin)) { 
+  die "ERROR, --invclan requires --clanin";
+}
 my @tblout_file_A = ();
 
 if($do_listfile) { 
@@ -417,23 +422,36 @@ sub parse_sorted_tblout_file {
     my $keep_me = 1; # set to '0' below if we find a better scoring hit
     my $overlap_idx = -1;
     my $cur_noverlap = 0;
+    my $clan_criteria_passed = 1; # set to '1' if --clanin not used OR
+                                  # --clanin used and --invclan NOT used and two hits are to families in the same clan
+                                  # --clanin used and --invclan IS  used and two hits are NOT to families in the same clan
+                                  # else set to '0'
     for(my $i = 0; $i < $nhits; $i++) { 
-      if(($strand_A[$i] eq $strand) &&                                # same strand
-         (determine_if_clans_match($do_clans, $clan, $clan_A[$i])) && # clans match, or --clanin not used
-         ((! $do_maxkeep) || ($keepme_A[$i] == 1))) {                 # either --maxkeep not enabled, or this hit is a keepter
-        if($strand eq "+") { 
-          $cur_noverlap = get_overlap($seqfrom, $seqto, $seqfrom_A[$i], $seqto_A[$i]);
+      if($strand_A[$i] eq $strand) {  # same strand
+        if($do_clans) { 
+          if($do_invclan) { 
+            $clan_criteria_passed = (! determine_if_clans_match($clan, $clan_A[$i]));
+          }
+          else { 
+            $clan_criteria_passed = determine_if_clans_match($clan, $clan_A[$i]);
+          }
         }
-        elsif($strand eq "-") { 
-          $cur_noverlap = get_overlap($seqto, $seqfrom, $seqto_A[$i], $seqfrom_A[$i]);
-        }
-        else { 
-          die "ERROR strand not + or - but $strand for hit $i line:\n$line\n";
-        }
-        if($cur_noverlap >= $noverlap) { 
-          $keep_me = 0;
-          $overlap_idx = $i;
-          $i = $nhits; # breaks for loop
+        if(($clan_criteria_passed) &&                   # clans match (or don't if --invclan), or --clanin not used
+           ((! $do_maxkeep) || ($keepme_A[$i] == 1))) { # either --maxkeep not enabled, or this hit is a keepter
+          if($strand eq "+") { 
+            $cur_noverlap = get_overlap($seqfrom, $seqto, $seqfrom_A[$i], $seqto_A[$i]);
+          }
+          elsif($strand eq "-") { 
+            $cur_noverlap = get_overlap($seqto, $seqfrom, $seqto_A[$i], $seqfrom_A[$i]);
+          }
+          else { 
+            die "ERROR strand not + or - but $strand for hit $i line:\n$line\n";
+          }
+          if($cur_noverlap >= $noverlap) { 
+            $keep_me = 0;
+            $overlap_idx = $i;
+            $i = $nhits; # breaks for loop
+          }
         }
       }
     }
@@ -545,12 +563,10 @@ sub output_one_target {
 # Subroutine : determine_if_clans_match()
 # Incept:      EPN, Mon May  8 10:28:41 2017
 #
-# Purpose:     Given two clan values return true if they 
-#              either match or if the --clanin option is
-#              not used.
+# Purpose:     Given two clan values return 1 if they 
+#              match else 0.
 #              
 # Arguments: 
-#   $do_clans: '1' if the --clanin option was used
 #   $clan1:    clan 1, can be undef
 #   $clan2:    clan 2, can be undef
 #
@@ -560,16 +576,13 @@ sub output_one_target {
 #
 ################################################################# 
 sub determine_if_clans_match { 
-  my $nargs_expected = 3;
+  my $nargs_expected = 2;
   my $sub_name = "determine_if_clans_match";
   if(scalar(@_) != $nargs_expected) { printf STDERR ("ERROR, $sub_name entered with %d != %d input arguments.\n", scalar(@_), $nargs_expected); exit(1); } 
 
-  my ($do_clans, $clan1, $clan2) = @_;
+  my ($clan1, $clan2) = @_;
 
-  if(! $do_clans) { 
-    return 1; 
-  }
-  elsif((! defined $clan1) || (! defined $clan2)) { 
+  if((! defined $clan1) || (! defined $clan2)) { 
     # 1 or both of $clan1 and $clan2 are undefined, can't be a match
     return 0;
   }
@@ -708,7 +721,6 @@ sub parse_claninfo {
       }
     }
   }
-
   return;
 }
 
