@@ -35,7 +35,7 @@ use Getopt::Long;
 my $in_tblout  = "";   # name of input tblout file
 
 my $usage;
-$usage  = "cmsearch-deoverlap v0.06 [Dec 2019]\n\n";
+$usage  = "cmsearch-deoverlap v0.07 [Dec 2019]\n\n";
 $usage .= "Usage:\n\n";
 $usage .= "cmsearch-deoverlap.pl    [OPTIONS] <tblout file>\n\tOR\n";
 $usage .= "cmsearch-deoverlap.pl -l [OPTIONS] <list of tblout files>\n\n";
@@ -142,33 +142,34 @@ foreach my $tblout_file (@tblout_file_A) {
   # or default if both of those are false
   #
   $sorted_tblout_file = $tblout_file . ".sort";
+  # the 'sed' calls replace multiple spaces with a single one, because sort is weird about multiple spaces sometimes
   if($do_hmmsearch) { 
     if($do_besthmm) { 
       $sort_cmd = ((defined $rank_by_score) && ($rank_by_score == 1)) ? 
-          "grep -v ^\# $tblout_file | sort -k 1,1 -k 9,9rn -k 8,8g > $sorted_tblout_file" : 
-          "grep -v ^\# $tblout_file | sort -k 1,1 -k 8,8g -k 9,9rn > $sorted_tblout_file";
+          "grep -v ^\# $tblout_file | sed 's/  */ /g' | sort -k 1,1 -k 9,9rn -k 8,8g > $sorted_tblout_file" : 
+          "grep -v ^\# $tblout_file | sed 's/  */ /g' | sort -k 1,1 -k 8,8g -k 9,9rn > $sorted_tblout_file";
     }
     else { # sort by full sequence evalue/score
       $sort_cmd = ((defined $rank_by_score) && ($rank_by_score == 1)) ? 
-          "grep -v ^\# $tblout_file | sort -k 1,1 -k 6,6rn -k 5,5g > $sorted_tblout_file" : 
-          "grep -v ^\# $tblout_file | sort -k 1,1 -k 5,5g -k 6,6rn > $sorted_tblout_file";
+          "grep -v ^\# $tblout_file | sed 's/  */ /g' | sort -k 1,1 -k 6,6rn -k 5,5g > $sorted_tblout_file" : 
+          "grep -v ^\# $tblout_file | sed 's/  */ /g' | sort -k 1,1 -k 5,5g -k 6,6rn > $sorted_tblout_file";
     }
   }
   elsif($do_nhmmer) { 
     $sort_cmd = ((defined $rank_by_score) && ($rank_by_score == 1)) ? 
-        "grep -v ^\# $tblout_file | sort -k 1,1 -k 14,14rn -k 13,13g > $sorted_tblout_file" : 
-        "grep -v ^\# $tblout_file | sort -k 1,1 -k 13,13g -k 14,14rn > $sorted_tblout_file";
+        "grep -v ^\# $tblout_file | sed 's/  */ /g' | sort -k 1,1 -k 14,14rn -k 13,13g > $sorted_tblout_file" : 
+        "grep -v ^\# $tblout_file | sed 's/  */ /g' | sort -k 1,1 -k 13,13g -k 14,14rn > $sorted_tblout_file";
   }
   elsif($do_cmscan) { 
     $sort_cmd = ((defined $rank_by_score) && ($rank_by_score == 1)) ? 
-      "grep -v ^\# $tblout_file | sort -k 3,3 -k 15,15rn -k 16,16g > $sorted_tblout_file" : 
-      "grep -v ^\# $tblout_file | sort -k 3,3 -k 16,16g -k 15,15rn > $sorted_tblout_file";
+      "grep -v ^\# $tblout_file | sed 's/  */ /g' | sort -k 3,3 -k 15,15rn -k 16,16g > $sorted_tblout_file" : 
+      "grep -v ^\# $tblout_file | sed 's/  */ /g' | sort -k 3,3 -k 16,16g -k 15,15rn > $sorted_tblout_file";
   }
   else { 
     # cmsearch, default
     $sort_cmd = ((defined $rank_by_score) && ($rank_by_score == 1)) ? 
-      "grep -v ^\# $tblout_file | sort -k 1,1 -k 15,15rn -k 16,16g > $sorted_tblout_file" : 
-      "grep -v ^\# $tblout_file | sort -k 1,1 -k 16,16g -k 15,15rn > $sorted_tblout_file";
+      "grep -v ^\# $tblout_file | sed 's/  */ /g' | sort -k 1,1 -k 15,15rn -k 16,16g > $sorted_tblout_file" : 
+      "grep -v ^\# $tblout_file | sed 's/  */ /g' | sort -k 1,1 -k 16,16g -k 15,15rn > $sorted_tblout_file";
   }
   run_command($sort_cmd, $do_debug);
   $output_file = $tblout_file . ".deoverlapped";

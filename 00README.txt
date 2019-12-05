@@ -1,13 +1,13 @@
-EPN, Mon Dec  2 10:31:41 2019
+EPN, Thu Dec  5 13:51:54 2019
 
-Version 0.06
+Version 0.07
 
 cmsearch-deoverlap.pl: remove lower scoring overlaps from cmsearch
                        --tblout files.
 
 Usage:
 $ perl ./cmsearch-deoverlap.pl 
-cmsearch-deoverlap v0.06 [Dec 2019]
+cmsearch-deoverlap v0.07 [Dec 2019]
 
 Usage:
 
