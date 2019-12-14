@@ -156,37 +156,70 @@ my $overlap_FH = undef;
 if(defined $out_overlap) { 
   open($overlap_FH, ">", $out_overlap) || die "ERROR unable to open $out_overlap for writing";
   my @fields_A = ();
+  my %fields_H = ();
   push(@fields_A, "target");
+  $fields_H{"target"} = "sequence name";
   push(@fields_A, "strand");
+  $fields_H{"strand"} = "strand (+ or -)"; 
   push(@fields_A, "mdl1");
+  $fields_H{"mdl1"} = "name of model 1";
   push(@fields_A, "mdl2");
+  $fields_H{"mdl2"} = "name of model 2";
   push(@fields_A, "hitlen1");
+  $fields_H{"hitlen1"} = "length in sequence positions of hit to model 1";
   push(@fields_A, "hitlen2");
+  $fields_H{"hitlen2"} = "length in sequence positions of hit to model 2";
   push(@fields_A, "nres_olap");
+  $fields_H{"nres_olap"} = "number of residues that overlap between hit to model 1 and hit to model 2 in 'target' on strand 'strand'";
   push(@fields_A, "score1");
+  $fields_H{"score1"} = "score of hit to model 1";
   push(@fields_A, "score2");
+  $fields_H{"score2"} = "score of hit to model 2";
   push(@fields_A, "evalue1");
+  $fields_H{"evalue1"} = "E-value of hit to model 1";
   push(@fields_A, "evalue2");
+  $fields_H{"evalue2"} = "E-value of hit to model 2";
   push(@fields_A, "seqfrom1");
+  $fields_H{"seqfrom1"} = "start position in 'target' of hit to model 1";
   push(@fields_A, "seqto1");
+  $fields_H{"seqto1"} = "end position in 'target' of hit to model 1";
   push(@fields_A, "seqfrom2");
+  $fields_H{"seqfrom2"} = "start position in 'target' of hit to model 2";
   push(@fields_A, "seqto2");
+  $fields_H{"seqto2"} = "end position in 'target' of hit to model 2";
   push(@fields_A, "olap-frac-of-hit1");
+  $fields_H{"olap-frac-of-hit1"} = "'nres_olap'/'hitlen1'";
   push(@fields_A, "olap-frac-of-hit2");
+  $fields_H{"olap-frac-of-hit2"} = "'nres_olap'/'hitlen2'";
   push(@fields_A, "mdllen1");
+  $fields_H{"mdllen1"} = "length of model 1 (\"-\" if not available)";
   push(@fields_A, "mdllen2");
-  push(@fields_A, "hit-frac-of-mdl1");
-  push(@fields_A, "hit-frac-of-mdl2");
+  $fields_H{"mdllen2"} = "length of model 2 (\"-\" if not available)";
+  push(@fields_A, "olap-frac-of-mdl1");
+  $fields_H{"olap-frac-of-mdl1"} = "'nres_olap'/'mdllen1'";
+  push(@fields_A, "olap-frac-of-mdl2");
+  $fields_H{"olap-frac-of-mdl2"} = "'nres_olap'/'mdllen2'";
+  push(@fields_A, "mhitlen1");
+  $fields_H{"mhitlen1"} = "length in model positions of hit to model 1";
+  push(@fields_A, "mhitlen2");
+  $fields_H{"mhitlen2"} = "length in model positions of hit to model 2";
+  push(@fields_A, "mhit-frac-of-mdl1");
+  $fields_H{"mhit-frac-of-mdl1"} = "'mhitlen1'/'mdllen1'";
+  push(@fields_A, "mhit-frac-of-mdl2");
+  $fields_H{"mhit-frac-of-mdl2"} = "'mhitlen2'/'mdllen2'";
   push(@fields_A, "desc1");
+  $fields_H{"desc1"} = "description for hit to model 1";
   push(@fields_A, "desc2");
-  print $overlap_FH ("#"); 
+  $fields_H{"desc2"} = "description for hit to model 2";
   my $fidx = 1;
+  my $all_header_line = "#";
+  print $overlap_FH ("# cmsearch-deoverlap.pl --overlapout output file\n# Explanation of fields:\n");
   foreach my $field (@fields_A) { 
-    if($fidx > 1) { print $overlap_FH (" "); }
-    printf $overlap_FH ("%d:%s", $fidx, $field);
+    printf $overlap_FH ("# %d. %-20s: %s\n", $fidx, "'" . $field . "'", $fields_H{$field});
+    $all_header_line .= sprintf("%s%d:%s", ($fidx == 1) ? "" : " ", $fidx, $field); 
     $fidx++;
   }
-  print $overlap_FH ("\n");
+  print $overlap_FH $all_header_line . "\n";
 }
 
 foreach my $tblout_file (@tblout_file_A) { 
@@ -495,7 +528,7 @@ sub parse_sorted_tblout_file {
         my $mdllen1  = ((defined $mdllen_HR) && (defined $mdllen_HR->{$model_A[$overlap_idx]})) ? $mdllen_HR->{$model_A[$overlap_idx]} : "-";
         my $mdllen2  = ((defined $mdllen_HR) && (defined $mdllen_HR->{$model})) ? $mdllen_HR->{$model} : "-";
 
-        printf $overlap_FH ("%-s %s %s %s %d %d %d %s %s %s %s %d %d %d %d %.3f %.3f %s %s %s %s %s %s\n", 
+        printf $overlap_FH ("%-s\t%s\t%s\t%s\t%d\t%d\t%d\t%s\t%s\t%s\t%s\t%d\t%d\t%d\t%d\t%.3f\t%.3f\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", 
                             $target, $strand, $model_A[$overlap_idx], $model, 
                             $hitlen1, $hitlen2, $cur_noverlap,
                             $score_A[$overlap_idx], $score,
@@ -504,6 +537,9 @@ sub parse_sorted_tblout_file {
                             $seqfrom, $seqto, 
                             $cur_noverlap/$hitlen1, $cur_noverlap/$hitlen2, 
                             $mdllen1, $mdllen2, 
+                            ($mdllen1 ne "-") ? (sprintf("%.3f", $cur_noverlap/$mdllen1)) : "-",
+                            ($mdllen2 ne "-") ? (sprintf("%.3f", $cur_noverlap/$mdllen2)) : "-",
+                            $mhitlen1, $mhitlen2,
                             (($mhitlen1 ne "-") && ($mdllen1 ne "-")) ? (sprintf("%.3f", $mhitlen1/$mdllen1)) : "-",
                             (($mhitlen2 ne "-") && ($mdllen2 ne "-")) ? (sprintf("%.3f", $mhitlen2/$mdllen2)) : "-", 
                             $desc_A[$overlap_idx], $desc);
