@@ -1,7 +1,7 @@
 use Getopt::Long;
 
 my $usage;
-$usage  = "cmsearch-deoverlap v0.07 [Dec 2019]\n\n";
+$usage  = "cmsearch-deoverlap v0.08 [Dec 2019]\n\n";
 $usage .= "Usage:\n\n";
 $usage .= "perl check-cmsearch-v-cmscan.pl [OPTIONS] <cmsearch non-deoverlapped tblout output> <cmscan --fmt 2 --oskip tblout output>\n\n";
 $usage .= "\tOPTIONS:\n";
