@@ -35,25 +35,28 @@ use Getopt::Long;
 my $in_tblout  = "";   # name of input tblout file
 
 my $usage;
-$usage  = "cmsearch-deoverlap v0.07 [Dec 2019]\n\n";
+$usage  = "cmsearch-deoverlap v0.08 [Dec 2019]\n\n";
 $usage .= "Usage:\n\n";
 $usage .= "cmsearch-deoverlap.pl    [OPTIONS] <tblout file>\n\tOR\n";
 $usage .= "cmsearch-deoverlap.pl -l [OPTIONS] <list of tblout files>\n\n";
 $usage .= "\tOPTIONS:\n";
-$usage .= "\t\t-l             : single command line argument is a list of tblout files, not a single tblout file\n";
-$usage .= "\t\t-s             : sort hits by bit score [default: sort by E-value]\n";
-$usage .= "\t\t-d             : run in debugging mode (prints extra info)\n";
-$usage .= "\t\t-v             : run in verbose mode (prints all removed and kept hits)\n";
-$usage .= "\t\t--noverlap <n> : define an overlap as >= <n> or more overlapping residues [1]\n";
-$usage .= "\t\t--nhmmer       : tblout files are from nhmmer v3.x\n";
-$usage .= "\t\t--hmmsearch    : tblout files are from hmmsearch v3.x\n";
-$usage .= "\t\t--cmscan       : tblout files are from cmscan v1.1x, not cmsearch\n";
-$usage .= "\t\t--fcmsearch    : assert tblout files are cmsearch not cmscan\n";
-$usage .= "\t\t--besthmm      : with --hmmsearch, sort by evalue/score of *best* single hit not evalue/score of full seq\n";
-$usage .= "\t\t--clanin <s>   : only remove overlaps within clans, read clan info from file <s> [default: remove all overlaps]\n";
-$usage .= "\t\t--maxkeep      : keep hits that only overlap with other hits that are not kept [default: remove all hits with higher scoring overlap]\n";
-$usage .= "\t\t--dirty        : keep intermediate files (sorted tblout files)\n\n";
-
+$usage .= "\t\t-l               : single command line argument is a list of tblout files, not a single tblout file\n";
+$usage .= "\t\t-s               : sort hits by bit score [default: sort by E-value]\n";
+$usage .= "\t\t-d               : run in debugging mode (prints extra info)\n";
+$usage .= "\t\t-v               : run in verbose mode (prints all removed and kept hits)\n";
+$usage .= "\t\t--noverlap <n>   : define an overlap as >= <n> or more overlapping residues [1]\n";
+$usage .= "\t\t--nhmmer         : tblout files are from nhmmer v3.x\n";
+$usage .= "\t\t--hmmsearch      : tblout files are from hmmsearch v3.x\n";
+$usage .= "\t\t--cmscan         : tblout files are from cmscan v1.1x, not cmsearch\n";
+$usage .= "\t\t--fcmsearch      : assert tblout files are cmsearch not cmscan\n";
+$usage .= "\t\t--besthmm        : with --hmmsearch, sort by evalue/score of *best* single hit not evalue/score of full seq\n";
+$usage .= "\t\t--clanin <s>     : only remove overlaps within clans, read clan info from file <s> [default: remove all overlaps]\n";
+$usage .= "\t\t--invclan        : w/--clanin, invert clan behavior: do not remove overlaps within clans, remove all other overlaps\n";
+$usage .= "\t\t--maxkeep        : keep hits that only overlap with other hits that are not kept [default: remove all hits with higher scoring overlap]\n";
+$usage .= "\t\t--overlapout <s> : create new tabular file with overlap information in <s>\n";
+$usage .= "\t\t--mdllenin <s>   : w/--overlapout, read model lengths from two-token-per-line-file <s>\n";
+$usage .= "\t\t--dirty          : keep intermediate files (sorted tblout files)\n\n";
+ 
 my $do_listfile      = 0;     # set to '1' if -l used
 my $rank_by_score    = 0;     # set to '1' if -s used, rank by score, not evalues
 my $do_debug         = 0;     # set to '1' if -d used
@@ -62,26 +65,32 @@ my $do_cmscan        = 0;     # set to '1' if --cmscan used
 my $do_fcmsearch     = 0;     # set to '1' if --fcmsearch used
 my $noverlap         = 1;     # set to <n> if --noverlap <n> used
 my $in_clanin        = undef; # defined if --clanin option used
+my $do_invclan       = 0;     # set to '1' if --invclan used
 my $do_nhmmer        = 0;     # set to '1' if --nhmmer used, input tblout file(s) are from hmmer3's nhmmer
 my $do_hmmsearch     = 0;     # set to '1' if --hmmsearch used, input tblout file(s) are from hmmer3's hmmsearch
 my $do_besthmm       = 0;     # set to '1' if --besthmm used, sorting by evalue/score of best hit with --hmmsearch
 my $do_maxkeep       = 0;     # set to '1' if --maxkeep, only remove hits that have 
                               # higher scoring overlap that is not removed
 my $do_dirty         = 0;     # set to '1' if --dirty used, keep intermediate files
+my $out_overlap      = undef; # defined if --overlapout <s> used
+my $in_mdllen        = undef; # defined if --mdllenin <s> used
 
-&GetOptions( "l"          => \$do_listfile, 
-             "s"          => \$rank_by_score,
-             "d"          => \$do_debug,
-             "v"          => \$be_verbose,
-             "cmscan"     => \$do_cmscan,
-             "fcmsearch"  => \$do_fcmsearch,
-             "noverlap=s" => \$noverlap,
-             "nhmmer"     => \$do_nhmmer,
-             "hmmsearch"  => \$do_hmmsearch,
-             "besthmm"    => \$do_besthmm,
-             "clanin=s"   => \$in_clanin,
-             "maxkeep"    => \$do_maxkeep, 
-             "keep"       => \$do_dirty);
+&GetOptions( "l"            => \$do_listfile, 
+             "s"            => \$rank_by_score,
+             "d"            => \$do_debug,
+             "v"            => \$be_verbose,
+             "cmscan"       => \$do_cmscan,
+             "fcmsearch"    => \$do_fcmsearch,
+             "noverlap=s"   => \$noverlap,
+             "nhmmer"       => \$do_nhmmer,
+             "hmmsearch"    => \$do_hmmsearch,
+             "besthmm"      => \$do_besthmm,
+             "clanin=s"     => \$in_clanin,
+             "invclan"      => \$do_invclan,
+             "maxkeep"      => \$do_maxkeep, 
+             "overlapout=s" => \$out_overlap,
+             "mdllenin=s"   => \$in_mdllen,
+             "dirty"        => \$do_dirty);
 
 if(scalar(@ARGV) != 1) { die $usage; }
 ($in_tblout) = @ARGV;
@@ -92,7 +101,9 @@ if($do_hmmsearch && $do_nhmmer) {
 if($do_besthmm && (! $do_hmmsearch)) { 
   die "ERROR, --besthmm requires --hmmsearch."; 
 }  
-
+if($do_invclan && (! defined $in_clanin)) { 
+  die "ERROR, --invclan requires --clanin";
+}
 my @tblout_file_A = ();
 
 if($do_listfile) { 
@@ -113,6 +124,21 @@ else {
   $tblout_file_A[0] = $in_tblout;
 }
 
+my %mdllen_H = ();
+if(defined $in_mdllen) { # read this file too
+  open(IN, $in_mdllen) || die "ERROR unable to open $in_mdllen for reading"; 
+  while(my $line = <IN>) { 
+    chomp $line;
+    if($line =~ /^(\S+)\s+(\d+)$/) { 
+      $mdllen_H{$1} = $2;
+    }
+    else { 
+      die "ERROR unable to parse <model> <modellen> line in $in_mdllen\n$line\n";
+    }
+  }
+  close(IN);
+}
+
 my %clan_H = (); # key: model name, value: clan name
 if(defined $in_clanin) { 
   %clan_H = ();
@@ -125,6 +151,76 @@ my $output_file        = undef; # name of output file we create
 my $out_FH             = undef; # output file handle 
 my $nkept              = undef; # number of sequences kept from a file 
 my $nremoved           = undef; # number of sequences removed from a file 
+
+my $overlap_FH = undef;
+if(defined $out_overlap) { 
+  open($overlap_FH, ">", $out_overlap) || die "ERROR unable to open $out_overlap for writing";
+  my @fields_A = ();
+  my %fields_H = ();
+  push(@fields_A, "target");
+  $fields_H{"target"} = "sequence name";
+  push(@fields_A, "strand");
+  $fields_H{"strand"} = "strand (+ or -)"; 
+  push(@fields_A, "mdl1");
+  $fields_H{"mdl1"} = "name of model 1";
+  push(@fields_A, "mdl2");
+  $fields_H{"mdl2"} = "name of model 2";
+  push(@fields_A, "hitlen1");
+  $fields_H{"hitlen1"} = "length in sequence positions of hit to model 1";
+  push(@fields_A, "hitlen2");
+  $fields_H{"hitlen2"} = "length in sequence positions of hit to model 2";
+  push(@fields_A, "nres_olap");
+  $fields_H{"nres_olap"} = "number of residues that overlap between hit to model 1 and hit to model 2 in 'target' on strand 'strand'";
+  push(@fields_A, "score1");
+  $fields_H{"score1"} = "score of hit to model 1";
+  push(@fields_A, "score2");
+  $fields_H{"score2"} = "score of hit to model 2";
+  push(@fields_A, "evalue1");
+  $fields_H{"evalue1"} = "E-value of hit to model 1";
+  push(@fields_A, "evalue2");
+  $fields_H{"evalue2"} = "E-value of hit to model 2";
+  push(@fields_A, "seqfrom1");
+  $fields_H{"seqfrom1"} = "start position in 'target' of hit to model 1";
+  push(@fields_A, "seqto1");
+  $fields_H{"seqto1"} = "end position in 'target' of hit to model 1";
+  push(@fields_A, "seqfrom2");
+  $fields_H{"seqfrom2"} = "start position in 'target' of hit to model 2";
+  push(@fields_A, "seqto2");
+  $fields_H{"seqto2"} = "end position in 'target' of hit to model 2";
+  push(@fields_A, "olap-frac-of-hit1");
+  $fields_H{"olap-frac-of-hit1"} = "'nres_olap'/'hitlen1'";
+  push(@fields_A, "olap-frac-of-hit2");
+  $fields_H{"olap-frac-of-hit2"} = "'nres_olap'/'hitlen2'";
+  push(@fields_A, "mdllen1");
+  $fields_H{"mdllen1"} = "length of model 1 (\"-\" if not available)";
+  push(@fields_A, "mdllen2");
+  $fields_H{"mdllen2"} = "length of model 2 (\"-\" if not available)";
+  push(@fields_A, "olap-frac-of-mdl1");
+  $fields_H{"olap-frac-of-mdl1"} = "'nres_olap'/'mdllen1'";
+  push(@fields_A, "olap-frac-of-mdl2");
+  $fields_H{"olap-frac-of-mdl2"} = "'nres_olap'/'mdllen2'";
+  push(@fields_A, "mhitlen1");
+  $fields_H{"mhitlen1"} = "length in model positions of hit to model 1";
+  push(@fields_A, "mhitlen2");
+  $fields_H{"mhitlen2"} = "length in model positions of hit to model 2";
+  push(@fields_A, "mhit-frac-of-mdl1");
+  $fields_H{"mhit-frac-of-mdl1"} = "'mhitlen1'/'mdllen1'";
+  push(@fields_A, "mhit-frac-of-mdl2");
+  $fields_H{"mhit-frac-of-mdl2"} = "'mhitlen2'/'mdllen2'";
+  push(@fields_A, "desc1");
+  $fields_H{"desc1"} = "description for hit to model 1";
+  push(@fields_A, "desc2");
+  $fields_H{"desc2"} = "description for hit to model 2";
+  my $fidx = 1;
+  my $all_header_line = "#";
+  print $overlap_FH ("# cmsearch-deoverlap.pl --overlapout output file\n# Explanation of fields:\n");
+  foreach my $field (@fields_A) { 
+    printf $overlap_FH ("# %d. %-20s: %s\n", $fidx, "'" . $field . "'", $fields_H{$field});
+    $all_header_line .= sprintf("%s%d:%s", ($fidx == 1) ? "" : " ", $fidx, $field); 
+    $fidx++;
+  }
+  print $overlap_FH $all_header_line . "\n";
+}
 
 foreach my $tblout_file (@tblout_file_A) { 
   if(! -e $tblout_file) { die "ERROR tblout file $tblout_file does not exist"; }
@@ -175,13 +271,22 @@ foreach my $tblout_file (@tblout_file_A) {
   $output_file = $tblout_file . ".deoverlapped";
   $out_FH = undef;
   open($out_FH, ">", $output_file) || die "ERROR unable to open $output_file for writing"; 
-  ($nkept, $nremoved) = parse_sorted_tblout_file($sorted_tblout_file, (defined $in_clanin) ? \%clan_H : undef, 
-                                                 $do_cmscan, $do_nhmmer, $do_hmmsearch, $do_besthmm, $rank_by_score, $do_maxkeep, $do_debug, $be_verbose, $out_FH);
+
+  ($nkept, $nremoved) = parse_sorted_tblout_file($sorted_tblout_file, 
+                                                 (defined $in_clanin) ? \%clan_H : undef, 
+                                                 (defined $in_mdllen) ? \%mdllen_H : undef,
+                                                 $do_cmscan, $do_nhmmer, $do_hmmsearch, $do_besthmm, $rank_by_score, $do_maxkeep, $do_debug, $be_verbose, 
+                                                 $out_FH,
+                                                 (defined $out_overlap) ? $overlap_FH : undef);
   close $out_FH;
+  if(defined $out_overlap) { close $overlap_FH; }
   if(! $do_dirty) { 
-    #unlink $sorted_tblout_file;
+    unlink $sorted_tblout_file;
   }
-  printf("Saved %5d hits (%5d removed) to $output_file\n", $nkept, $nremoved)
+  printf("Saved %5d hits (%5d removed) to $output_file\n", $nkept, $nremoved);
+  if(defined $out_overlap) { 
+    printf("Saved tabular information on overlaps to $out_overlap\n");
+  }
 }
 
 #################################################################
@@ -193,7 +298,8 @@ foreach my $tblout_file (@tblout_file_A) {
 #              
 # Arguments: 
 #   $sorted_tbl_file:  file with sorted tabular search results
-#   $clan_HR:          ref to hash of clan info, key is model, value is clan
+#   $clan_HR:          ref to hash of clan info, key is model, value is clan, undef unless --clanin
+#   $mdllen_HR:        ref to hash of mdllen info, key is model, value is mdllen, undef unless --mdllenin
 #   $do_cmscan:        '1' if we're parsing cmscan tblout output
 #   $do_nhmmer:        '1' if we're parsing nhmmer tblout output
 #   $do_hmmsearch:     '1' if we're parsing hmmsearch tblout output
@@ -207,6 +313,7 @@ foreach my $tblout_file (@tblout_file_A) {
 #   $do_debug;         '1' if we should print debugging output
 #   $be_verbose;       '1' if we should be verbose
 #   $out_FH:           file handle to output to
+#   $overlap_FH:       file handle to output overlap info to (if --overlapout)
 #
 # Returns:     Two values: 
 #              $nkept:    number of hits saved and output
@@ -217,11 +324,13 @@ foreach my $tblout_file (@tblout_file_A) {
 #
 ################################################################# 
 sub parse_sorted_tblout_file { 
-  my $nargs_expected = 11;
+  my $nargs_expected = 13;
   my $sub_name = "parse_sorted_tblout_file";
   if(scalar(@_) != $nargs_expected) { printf STDERR ("ERROR, $sub_name entered with %d != %d input arguments.\n", scalar(@_), $nargs_expected); exit(1); } 
 
-  my ($sorted_tbl_file, $clan_HR, $do_cmscan, $do_nhmmer, $do_hmmsearch, $do_besthmm, $rank_by_score, $do_maxkeep, $do_debug, $be_verbose, $out_FH) = @_;
+  my ($sorted_tbl_file, $clan_HR, $mdllen_HR, 
+      $do_cmscan, $do_nhmmer, $do_hmmsearch, $do_besthmm, $rank_by_score, $do_maxkeep, $do_debug, $be_verbose, 
+      $out_FH, $overlap_FH) = @_;
 
   my $prv_target = undef; # target name of previous line
   my $prv_score  = undef; # bit score of previous line
@@ -233,8 +342,8 @@ sub parse_sorted_tblout_file {
 
   open(IN, $sorted_tbl_file) || die "ERROR unable to open sorted tabular file $sorted_tbl_file for reading";
 
-  my ($target, $tacc, $model, $macc, $domain, $mdlfrom, $mdlto, $seqfrom, $seqto, $strand, $score, $evalue) = 
-      (undef, undef, undef, undef, undef, undef, undef, undef, undef, undef, undef, undef);
+  my ($target, $tacc, $model, $macc, $domain, $mdlfrom, $mdlto, $seqfrom, $seqto, $strand, $score, $evalue, $desc) = 
+      (undef, undef, undef, undef, undef, undef, undef, undef, undef, undef, undef, undef, undef);
 
   my @line_A      = (); # array of output lines for kept hits for current sequence
   my @seqfrom_A   = (); # array of seqfroms for kept hits for current sequence
@@ -244,6 +353,14 @@ sub parse_sorted_tblout_file {
   my @keepme_A    = (); # array of '1' and '0', '1' if we should keep this hit, '0' if it had a higher scoring overlap
   my @noverlaps_A = (); # array of number of hits (lower scoring) that overlap with this sequence, **only valid for kept hits, -1 for removed hits**
   my $nhits       = 0;  # number of hits for current sequence (size of all arrays)
+  # arrays only filled if $overlap_FH is defined (if --overlapout was used)
+  my @mdlfrom_A   = (); # array of mdlfroms for kept hits for current sequence
+  my @mdlto_A     = (); # array of mdltos for kept hits for current sequence
+  my @model_A     = (); # array of model names for kept hits for current sequence
+  my @desc_A      = (); # array of descriptions for kept hits for current sequence
+  my @score_A     = (); # array of scores for kept hits for current sequence
+  my @evalue_A    = (); # array of e-values for kept hits for current sequence
+  my $do_desc = (defined $overlap_FH) ? 1 : 0;
 
   my %already_seen_H = (); # hash, key is sequence name, value is '1' if we have output info for this sequence
 
@@ -260,7 +377,7 @@ sub parse_sorted_tblout_file {
     }
     
     if($do_hmmsearch) { 
-      ($target, $model, $score, $evalue) = parse_hmmsearch_tblout_line($line, $do_besthmm);
+      ($target, $model, $score, $evalue, $desc) = parse_hmmsearch_tblout_line($line, $do_besthmm, $do_desc);
       # hmmsearch --tblout output lacks sequence ranges and strand information
       # we want to allow only a single hit to the each target, so we set span as 1..1
       # so that all hits to the same target will 'overlap'. Strand is set as "+"
@@ -268,16 +385,18 @@ sub parse_sorted_tblout_file {
       $seqfrom = 1;
       $seqto   = 1;
       $strand  = "+"; # no strand for hmmsearch output, so we assert + for de-overlapping purposes
+      $mdlfrom = "-";
+      $mdlto   = "-";
     }
     elsif($do_nhmmer) { 
-      ($target, $model, $seqfrom, $seqto, $strand, $score, $evalue) = parse_nhmmer_tblout_line($line);
+      ($target, $tacc, $model, $macc, $mdlfrom, $mdlto, $seqfrom, $seqto, $strand, $score, $evalue, $desc) = parse_nhmmer_tblout_line($line, $do_desc);
     }
     elsif($do_cmscan) { 
       # call parse_cmsearch_tblout_line, just reverse $model and $target
-      ($model, $macc, $target, $tacc, $seqfrom, $seqto, $strand, $score, $evalue) = parse_cmsearch_tblout_line($line);
+      ($model, $macc, $target, $tacc, $mdlfrom, $mdlto, $seqfrom, $seqto, $strand, $score, $evalue, $desc) = parse_cmsearch_tblout_line($line, $do_desc);
     }
     else { # default: cmsearch 
-      ($target, $tacc, $model, $macc, $seqfrom, $seqto, $strand, $score, $evalue) = parse_cmsearch_tblout_line($line);
+      ($target, $tacc, $model, $macc, $mdlfrom, $mdlto, $seqfrom, $seqto, $strand, $score, $evalue, $desc) = parse_cmsearch_tblout_line($line, $do_desc);
       if((! $do_fcmsearch) && ($tacc =~ /^RF\d+/)) { 
         die "ERROR, target accession $tacc looks like an Rfam accession suggesting this is cmscan tblout output,\ndid you mean to use --cmscan? Use --fcmsearch to assert this is cmsearch output and avoid this error.\n";
       }
@@ -310,6 +429,12 @@ sub parse_sorted_tblout_file {
       @clan_A      = ();
       @keepme_A    = ();
       @noverlaps_A = ();
+      @mdlfrom_A   = ();
+      @mdlto_A     = ();
+      @model_A     = ();
+      @desc_A      = ();
+      @score_A     = ();
+      @evalue_A    = ();
       $nhits       = 0;
     }
     else { # this is not a new sequence
@@ -330,19 +455,37 @@ sub parse_sorted_tblout_file {
     # if (  $do_maxkeep) we only look at hits that haven't been removed yet
     my $keep_me = 1; # set to '0' below if we find a better scoring hit
     my $overlap_idx = -1;
+    my $cur_noverlap = 0;
+    my $clan_criteria_passed = 1; # set to '1' if --clanin not used OR
+                                  # --clanin used and --invclan NOT used and two hits are to families in the same clan
+                                  # --clanin used and --invclan IS  used and two hits are NOT to families in the same clan
+                                  # else set to '0'
     for(my $i = 0; $i < $nhits; $i++) { 
-      if(($strand_A[$i] eq $strand) &&                                # same strand
-         (determine_if_clans_match($do_clans, $clan, $clan_A[$i])) && # clans match, or --clanin not used
-         ((! $do_maxkeep) || ($keepme_A[$i] == 1))) {                 # either --maxkeep not enabled, or this hit is a keepter
-        if(($strand eq "+") && (get_overlap($seqfrom, $seqto, $seqfrom_A[$i], $seqto_A[$i]) >= $noverlap)) { 
-          $keep_me = 0;
-          $overlap_idx = $i;
-          $i = $nhits; # breaks for loop
+      if($strand_A[$i] eq $strand) {  # same strand
+        if($do_clans) { 
+          if($do_invclan) { 
+            $clan_criteria_passed = (! determine_if_clans_match($clan, $clan_A[$i]));
+          }
+          else { 
+            $clan_criteria_passed = determine_if_clans_match($clan, $clan_A[$i]);
+          }
         }
-        elsif(($strand eq "-") && (get_overlap($seqto, $seqfrom, $seqto_A[$i], $seqfrom_A[$i]) >= $noverlap)) { 
-          $keep_me = 0;
-          $overlap_idx = $i;
-          $i = $nhits; # breaks for loop
+        if(($clan_criteria_passed) &&                   # clans match (or don't if --invclan), or --clanin not used
+           ((! $do_maxkeep) || ($keepme_A[$i] == 1))) { # either --maxkeep not enabled, or this hit is a keepter
+          if($strand eq "+") { 
+            $cur_noverlap = get_overlap($seqfrom, $seqto, $seqfrom_A[$i], $seqto_A[$i]);
+          }
+          elsif($strand eq "-") { 
+            $cur_noverlap = get_overlap($seqto, $seqfrom, $seqto_A[$i], $seqfrom_A[$i]);
+          }
+          else { 
+            die "ERROR strand not + or - but $strand for hit $i line:\n$line\n";
+          }
+          if($cur_noverlap >= $noverlap) { 
+            $keep_me = 0;
+            $overlap_idx = $i;
+            $i = $nhits; # breaks for loop
+          }
         }
       }
     }
@@ -352,6 +495,14 @@ sub parse_sorted_tblout_file {
     $seqto_A[$nhits]   = $seqto;
     $strand_A[$nhits]  = $strand;
     $clan_A[$nhits]    = $clan;
+    if(defined $overlap_FH) { # only need these if we're outputting to an overlap file
+      $mdlfrom_A[$nhits] = $mdlfrom;
+      $mdlto_A[$nhits]   = $mdlto;
+      $model_A[$nhits]   = $model;
+      $desc_A[$nhits]    = $desc;
+      $score_A[$nhits]   = $score;
+      $evalue_A[$nhits]  = $evalue;
+    }
     if($keep_me) { 
       $nkept++;
       $keepme_A[$nhits] = 1;
@@ -366,8 +517,32 @@ sub parse_sorted_tblout_file {
         printf("target: $target model: $model: removing $seqfrom..$seqto, it overlapped with $seqfrom_A[$overlap_idx]..$seqto_A[$overlap_idx]\n");
       }
       if($be_verbose) { 
-        printf("REMOVED                    $line\n");
-        printf("BECAUSE-IT-OVERLAPPED-WITH $line_A[$overlap_idx]\n");
+        printf("REMOVED                      %-*s  $line\n", length($cur_noverlap), "");
+        printf("BECAUSE-IT-OVERLAPPED-BY-" . $cur_noverlap . "-WITH $line_A[$overlap_idx]\n");
+      }
+      if(defined $overlap_FH) { 
+        my $hitlen1  = abs($seqfrom_A[$overlap_idx]-$seqto_A[$overlap_idx])+1;
+        my $hitlen2  = abs($seqfrom-$seqto)+1;
+        my $mhitlen1 = (($mdlfrom_A[$overlap_idx] ne "-") && ($mdlto_A[$overlap_idx] ne "-")) ? abs($mdlfrom_A[$overlap_idx]-$mdlto_A[$overlap_idx])+1 : "-";
+        my $mhitlen2 = (($mdlfrom ne "-") && ($mdlto ne "-")) ? abs($mdlfrom-$mdlto)+1 : "-";
+        my $mdllen1  = ((defined $mdllen_HR) && (defined $mdllen_HR->{$model_A[$overlap_idx]})) ? $mdllen_HR->{$model_A[$overlap_idx]} : "-";
+        my $mdllen2  = ((defined $mdllen_HR) && (defined $mdllen_HR->{$model})) ? $mdllen_HR->{$model} : "-";
+
+        printf $overlap_FH ("%-s\t%s\t%s\t%s\t%d\t%d\t%d\t%s\t%s\t%s\t%s\t%d\t%d\t%d\t%d\t%.3f\t%.3f\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", 
+                            $target, $strand, $model_A[$overlap_idx], $model, 
+                            $hitlen1, $hitlen2, $cur_noverlap,
+                            $score_A[$overlap_idx], $score,
+                            $evalue_A[$overlap_idx], $evalue,
+                            $seqfrom_A[$overlap_idx], $seqto_A[$overlap_idx], 
+                            $seqfrom, $seqto, 
+                            $cur_noverlap/$hitlen1, $cur_noverlap/$hitlen2, 
+                            $mdllen1, $mdllen2, 
+                            ($mdllen1 ne "-") ? (sprintf("%.3f", $cur_noverlap/$mdllen1)) : "-",
+                            ($mdllen2 ne "-") ? (sprintf("%.3f", $cur_noverlap/$mdllen2)) : "-",
+                            $mhitlen1, $mhitlen2,
+                            (($mhitlen1 ne "-") && ($mdllen1 ne "-")) ? (sprintf("%.3f", $mhitlen1/$mdllen1)) : "-",
+                            (($mhitlen2 ne "-") && ($mdllen2 ne "-")) ? (sprintf("%.3f", $mhitlen2/$mdllen2)) : "-", 
+                            $desc_A[$overlap_idx], $desc);
       }
     }
     $nhits++;
@@ -425,12 +600,10 @@ sub output_one_target {
 # Subroutine : determine_if_clans_match()
 # Incept:      EPN, Mon May  8 10:28:41 2017
 #
-# Purpose:     Given two clan values return true if they 
-#              either match or if the --clanin option is
-#              not used.
+# Purpose:     Given two clan values return 1 if they 
+#              match else 0.
 #              
 # Arguments: 
-#   $do_clans: '1' if the --clanin option was used
 #   $clan1:    clan 1, can be undef
 #   $clan2:    clan 2, can be undef
 #
@@ -440,16 +613,13 @@ sub output_one_target {
 #
 ################################################################# 
 sub determine_if_clans_match { 
-  my $nargs_expected = 3;
+  my $nargs_expected = 2;
   my $sub_name = "determine_if_clans_match";
   if(scalar(@_) != $nargs_expected) { printf STDERR ("ERROR, $sub_name entered with %d != %d input arguments.\n", scalar(@_), $nargs_expected); exit(1); } 
 
-  my ($do_clans, $clan1, $clan2) = @_;
+  my ($clan1, $clan2) = @_;
 
-  if(! $do_clans) { 
-    return 1; 
-  }
-  elsif((! defined $clan1) || (! defined $clan2)) { 
+  if((! defined $clan1) || (! defined $clan2)) { 
     # 1 or both of $clan1 and $clan2 are undefined, can't be a match
     return 0;
   }
@@ -588,7 +758,6 @@ sub parse_claninfo {
       }
     }
   }
-
   return;
 }
 
@@ -611,28 +780,38 @@ sub parse_claninfo {
 #             $tacc:    target accession    (-)
 #             $query:   query name          (5S_rRNA)
 #             $qacc:    query accession     (RF00005)
+#             $mdlfrom: hmmfrom coord       (1)
+#             $mdlto:   hmm to coord        (119)
 #             $seqfrom: sequence from coord (1)
 #             $seqto:   sequence to coord   (121)
 #             $strand:  strand of hit       (+)
 #             $score:   bit score of hit    (108.2)
 #             $evalue:  E-value of hit      (1.5e-27)
+#             $desc:    description, undef unless $do_desc is 1
 #
 # Dies:       if line has fewer than 18 space delimited characters
 #################################################################
 sub parse_cmsearch_tblout_line { 
   my $sub_name = "parse_cmsearch_tblout_line";
-  my $nargs_expected = 1;
+  my $nargs_expected = 2;
   if(scalar(@_) != $nargs_expected) { printf STDERR ("ERROR, $sub_name entered with %d != %d input arguments.\n", scalar(@_), $nargs_expected); exit(1); } 
 
-  my ($line) = @_;
+  my ($line, $do_desc) = @_;
   
   my @el_A = split(/\s+/, $line);
 
   if(scalar(@el_A) < 18) { die "ERROR found less than 18 columns in cmsearch tabular output at line: $line"; }
-  my ($target, $tacc, $query, $qacc, $seqfrom, $seqto, $strand, $score, $evalue) = 
-      ($el_A[0], $el_A[1], $el_A[2], $el_A[3], $el_A[7], $el_A[8], $el_A[9],  $el_A[14], $el_A[15]);
+  my ($target, $tacc, $query, $qacc, $mdlfrom, $mdlto, $seqfrom, $seqto, $strand, $score, $evalue) = 
+      ($el_A[0], $el_A[1], $el_A[2], $el_A[3], $el_A[5], $el_A[6], $el_A[7], $el_A[8], $el_A[9],  $el_A[14], $el_A[15]);
 
-  return($target, $tacc, $query, $qacc, $seqfrom, $seqto, $strand, $score, $evalue);
+  my $desc = undef;
+  if($do_desc) { 
+    $desc = $el_A[17];
+    my $nel = scalar(@el_A);
+    for(my $i = 18; $i < $nel; $i++) { $desc .= "_" . $el_A[$i]; } # replace spaces with "_";
+  }
+
+  return($target, $tacc, $query, $qacc, $mdlfrom, $mdlto, $seqfrom, $seqto, $strand, $score, $evalue, $desc);
 }
 
 #################################################################
@@ -648,34 +827,44 @@ sub parse_cmsearch_tblout_line {
 #     5S_rRNA-sample10     -          5S_rRNA              RF00001          4     115       4     117       1     121     121    +     1.6e-17   53.3   4.8  -
 #
 # Arguments:
-#   $line:  line to parse
+#   $line:    line to parse
+#   $do_desc: '1' to parse and return description, else '0'
 #
 # Returns:    $target: name of target       (5S_rRNA-sample10)
 #             $tacc:    target accession    (-)
 #             $query:   query name          (5S_rRNA)
 #             $qacc:    query accession     (RF00005)
+#             $mdlfrom: hmmfrom coord       (4)
+#             $mdlto:   hmm to coord        (115)
 #             $seqfrom: ali from coord      (4)
 #             $seqto:   ali to coord        (117)
 #             $strand:  strand of hit       (+)
 #             $score:   bit score of hit    (53.3)
 #             $evalue:  E-value of hit      (1.6e-17)
+#             $desc:    description, undef unless $do_desc is 1
 #
 # Dies:       if line has fewer than 16 space delimited characters
 #################################################################
 sub parse_nhmmer_tblout_line { 
   my $sub_name = "parse_nhmmer_tblout_line";
-  my $nargs_expected = 1;
+  my $nargs_expected = 2;
   if(scalar(@_) != $nargs_expected) { printf STDERR ("ERROR, $sub_name entered with %d != %d input arguments.\n", scalar(@_), $nargs_expected); exit(1); } 
 
-  my ($line) = @_;
+  my ($line, $do_desc) = @_;
   
   my @el_A = split(/\s+/, $line);
 
   if(scalar(@el_A) < 16) { die "ERROR found less than 16 columns in nhmmer tabular output at line: $line"; }
-  my ($target, $tacc, $query, $qacc, $seqfrom, $seqto, $strand, $evalue, $score) = 
-      ($el_A[0], $el_A[1], $el_A[2], $el_A[3], $el_A[6], $el_A[7], $el_A[11], $el_A[12], $el_A[13]);
+  my ($target, $tacc, $query, $qacc, $mdlfrom, $mdlto, $seqfrom, $seqto, $strand, $evalue, $score) = 
+      ($el_A[0], $el_A[1], $el_A[2], $el_A[3], $el_A[4], $el_A[5], $el_A[6], $el_A[7], $el_A[11], $el_A[12], $el_A[13]);
+  my $desc = undef;
+  if($do_desc) { 
+    $desc = $el_A[15];
+    my $nel = scalar(@el_A);
+    for(my $i = 16; $i < $nel; $i++) { $desc .= "_" . $el_A[$i]; } # replace spaces with "_";
+  }
 
-  return($target, $tacc, $query, $qacc, $seqfrom, $seqto, $strand, $score, $evalue);
+  return($target, $tacc, $query, $qacc, $mdlfrom, $mdlto, $seqfrom, $seqto, $strand, $score, $evalue, $desc);
 }
 
 #################################################################
@@ -695,20 +884,22 @@ sub parse_nhmmer_tblout_line {
 #   $line:             line to parse
 #   $do_best:          '1' to return score and E-value of best hit, not full sequence
 #                      '0' to return score and E-value of sequence, not best hit
+#   $do_desc:          '1' to parse and return description, else '0'
 #
 # Returns:    $target: name of target       (5S_rRNA-sample10)
 #             $query:  query name           (5S_rRNA)
 #             $score:  bit score of sequence  (53.3)
 #             $evalue: E-value of hit      (1.6e-17)
+#             $desc:   description, undef unless $do_desc is 1
 #
 # Dies:       if line has fewer than 19 space delimited characters
 #################################################################
 sub parse_hmmsearch_tblout_line { 
   my $sub_name = "parse_hmmsearch_tblout_line";
-  my $nargs_expected = 2;
+  my $nargs_expected = 3;
   if(scalar(@_) != $nargs_expected) { printf STDERR ("ERROR, $sub_name entered with %d != %d input arguments.\n", scalar(@_), $nargs_expected); exit(1); } 
 
-  my ($line, $do_best) = @_;
+  my ($line, $do_best, $do_desc) = @_;
   
   my @el_A = split(/\s+/, $line);
 
@@ -716,9 +907,16 @@ sub parse_hmmsearch_tblout_line {
   my ($target, $query, $full_evalue, $full_score, $best_evalue, $best_score) = 
       ($el_A[0], $el_A[2], $el_A[4], $el_A[5], $el_A[7], $el_A[8]);
 
+  my $desc = undef;
+  if($do_desc) { 
+    $desc = $el_A[18];
+    my $nel = scalar(@el_A);
+    for(my $i = 19; $i < $nel; $i++) { $desc .= "_" . $el_A[$i]; } # replace spaces with "_";
+  }
+
   if($do_best) { 
-    return ($target, $query, $best_score, $best_evalue);
+    return ($target, $query, $best_score, $best_evalue, $desc);
   }
   # else
-  return ($target, $query, $full_score, $full_evalue);
+  return ($target, $query, $full_score, $full_evalue, $desc);
 }
