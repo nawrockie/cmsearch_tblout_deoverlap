@@ -1,13 +1,13 @@
-EPN, Thu Dec  5 13:51:54 2019
+EPN, Wed Aug  9 10:51:33 2023
 
-Version 0.08
+Version 0.09
 
 cmsearch-deoverlap.pl: remove lower scoring overlaps from cmsearch
                        --tblout files.
 
 Usage:
 $ perl ./cmsearch-deoverlap.pl 
-cmsearch-deoverlap v0.08 [Dec 2019]
+cmsearch-deoverlap v0.09 [Aug 2023]
 
 Usage:
 
@@ -128,5 +128,5 @@ Files are identical
 This test indicates that cmsearch-deoverlap.pl removes overlapping
 hits in an identical manner to cmscan version 1.1.2.
 
-See details in:
-/nfs/production/xfam/users/nawrocki/notebook/17_0508_inf_ebi_cmsearch_deoverlap/00LOG
+See details in (EBI):
+notebook/17_0508_inf_ebi_cmsearch_deoverlap/00LOG
